@@ -1,0 +1,18 @@
+# 설치 폴더·빌드 결과 (각자 npm install / Vercel이 다시 만듦)
+node_modules
+dist
+# 카카오 키가 들어 있으니 GitHub에 올리지 않음
+.env
+.DS_Store
+# 파이썬 실행 때 생기는 임시 파일
+__pycache__
+*.pyc
+
+# 아래 3개는 앞에 / 를 붙여서 "프로젝트 맨 위의 폴더"만 뺌
+# (/ 가 없으면 public/data 까지 빠져서 배포 사이트에 지도 데이터가 없어짐)
+# 범죄주의구간 그림 임시 저장 폴더 (용량이 커서 올리지 않음)
+/crime_tiles
+# osmnx 가 OpenStreetMap 응답을 저장하는 폴더
+/cache
+# 데이터 원본·중간 결과 (용량이 큼). 웹에서 쓰는 결과물은 public/data 에 있음
+/data
