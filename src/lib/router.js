@@ -214,7 +214,7 @@ export async function findRoutes(start, dest, hour, log) {
     const byCrime = usable
       .filter(r => r.risk <= fast.risk - CRIME_RISK_GAP && cut(r) >= CRIME_CUT_MIN_M && r.crimeHighM <= fast.crimeHighM * (1 - CRIME_CUT_RATIO))
       .sort((a, b) => a.crimeHighM - b.crimeHighM || a.risk - b.risk)[0];
-    if (byCrime) safe = { ...byCrime, basis: 'crime', why: '범죄주의 구간 ' + fmtDist(cut(byCrime)) + ' 적음 · 평균 위험도 ' + (fast.risk - byCrime.risk) + '점 낮음' };
+    if (byCrime) safe = { ...byCrime, basis: 'crime', why: '범죄 잦은 구간 ' + fmtDist(cut(byCrime)) + ' 적음 · 평균 위험도 ' + (fast.risk - byCrime.risk) + '점 낮음' };
   }
 
   // 하나만 보여주는 이유 (화면 문구용)

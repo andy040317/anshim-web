@@ -24,14 +24,15 @@ const SINGLE_MSG = {
 const METRICS = [
   { key: 'barZoneM', better: 'low', icon: 'moon', tone: 'chip-amber',
     text: v => (v > 0 ? '심야 유흥업소 밀집 구간 ' + fmtDist(v) + ' 통과' : '심야 유흥업소 밀집 구간 없음') },
-  { key: 'crimeHighM', better: 'low', tone: 'chip-amber', text: v => '범죄주의 7등급↑ ' + (v > 0 ? fmtDist(v) : '없음') },
+  // 범죄 잦은 구간 = 범죄주의 등급 7 이상인 길을 지나는 길이 (아래 설명 줄 참고)
+  { key: 'crimeHighM', better: 'low', tone: 'chip-amber', text: v => (v > 0 ? '범죄 잦은 구간 ' + fmtDist(v) + ' 지남' : '범죄 잦은 구간 없음') },
   // 어두운 길: 보안등·CCTV·비상벨 없는 골목급 길이 가장 길게 이어지는 길이 (어두운 시간에만 값이 있음)
   { key: 'darkRunM', better: 'low', min: 100, icon: 'moon', tone: 'chip-amber',
     text: v => (v >= 100 ? '어두운 길 최대 ' + fmtDist(v) + ' 연속' : '긴 어두운 길 없음') },
   { key: 'cameras', better: 'high', always: true, text: v => 'CCTV ' + v + '대 경유' },
   { key: 'bell', better: 'high', text: v => '비상벨 ' + v + '개' },
   { key: 'lampPct', better: 'high', always: true, text: v => '보안등 구간 ' + v + '%' },
-  { key: 'alleyPct', better: 'low', always: true, tone: 'chip-muted', text: v => '골목 ' + v + '%' },
+  { key: 'alleyPct', better: 'low', always: true, tone: 'chip-muted', text: v => '골목길 ' + v + '%' },
 ];
 
 // 다른 경로와 비교: 1 = 이 경로가 나음, -1 = 나쁨, 0 = 같음
@@ -60,7 +61,7 @@ function RouteCard({ r, sel, base, other, onPick }) {
         {r.detour > 0 && <span className="tone-amber">+{fmtDist(r.detour)}{mins > baseMin ? ' · +' + (mins - baseMin) + '분' : ''} 우회</span>}
         {isFast && <span>기준 경로</span>}
       </span>
-      {/* 안전 경로로 고른 이유 (예: 평균 위험도 3점 낮음 / 범죄주의 구간 1.9km 적음) */}
+      {/* 안전 경로로 고른 이유 (예: 평균 위험도 3점 낮음 / 범죄 잦은 구간 1.9km 적음) */}
       {r.why && <span className="rc-why"><Icon name="shield" size={14} />{r.why}</span>}
       <span className="rc-risk">
         <span className="rc-risk-top"><span>상대 위험도</span><b className={'tone-' + lv.tone}>{r.risk} · {lv.label}</b></span>
@@ -72,13 +73,13 @@ function RouteCard({ r, sel, base, other, onPick }) {
           // 두 경로 모두 0이면 숨김 (CCTV·보안등·골목은 항상 표시)
           const shown = x => x && x[m.key] >= (m.min || 1);
           if (!m.always && !shown(r) && !shown(other)) return null;
-          // 비교 대상이 있으면 ▲/▼ 와 초록/빨강, 없으면 원래 색
+          // 비교 대상이 있으면 ✓(더 나음, 초록) / ✕(더 나쁨, 빨강), 없으면 원래 색
           const c = other ? compare(m, r, other) : null;
           const cls = c === null ? (m.tone || tone) : c > 0 ? 'chip-good' : c < 0 ? 'chip-danger' : 'chip-muted';
           return (
             <span key={m.key} className={'chip ' + cls}>
-              {c === 1 && <span aria-hidden="true">▲</span>}
-              {c === -1 && <span aria-hidden="true">▼</span>}
+              {c === 1 && <span aria-hidden="true">✓</span>}
+              {c === -1 && <span aria-hidden="true">✕</span>}
               {m.icon && <Icon name={m.icon} size={12} />}
               {m.text(r[m.key])}
               {c !== null && c !== 0 && <span className="sr-only">{c > 0 ? ' (다른 경로보다 좋음)' : ' (다른 경로보다 나쁨)'}</span>}
@@ -165,13 +166,16 @@ export default function RouteCompareScreen() {
               {/* 경로가 하나뿐인 이유를 원인별로 안내 (자세한 후보 정보는 시연 도구 > API 기록) */}
               {t.routes[0].single && t.engine === 'osrm' && <p className="note-box">{SINGLE_MSG[t.reason] || SINGLE_MSG.smallDiff}</p>}
               {/* 두 경로를 비교할 때만: 칩 기호 설명 */}
-              {t.routes.length === 2 && <p className="cmp-legend"><span className="tone-good">▲ 다른 경로보다 좋음</span><span className="tone-danger">▼ 다른 경로보다 나쁨</span></p>}
+              {t.routes.length === 2 && <p className="cmp-legend"><span className="tone-good">✓ 다른 경로보다 나음</span><span className="tone-danger">✕ 다른 경로보다 나쁨</span></p>}
               {t.routes.map(r => (
                 <RouteCard key={r.id} r={r} sel={r.id === t.selectedId} base={base}
                   other={t.routes.length === 2 ? t.routes.find(x => x.id !== r.id) : null}
                   onPick={() => app.setTrip(x => ({ ...x, selectedId: r.id }))} />
               ))}
             </div>
+            {/* 칩 용어 설명 */}
+            <p className="disclaimer"><Icon name="info" size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+              범죄 잦은 구간: 생활안전지도 범죄주의 등급 7 이상인 길 (등급 숫자가 클수록 범죄가 잦은 곳) · 골목길: 큰길·중간 길이 아닌 좁은 길의 비율</p>
             <p className="disclaimer"><Icon name="info" size={14} style={{ flexShrink: 0, marginTop: 2 }} />
               위험도는 범죄주의구간·시간대별 유동인구·CCTV·비상벨·보안등·대피 거점·유흥주점·길 종류를 반영한, 경로끼리 비교하기 위한 상대 지표예요. 실제 범죄 확률이나 안전을 보장하지 않아요.</p>
             <div className="route-foot">
