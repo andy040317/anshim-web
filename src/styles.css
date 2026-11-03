@@ -252,6 +252,8 @@ textarea.input{height:auto;padding:12px 14px;line-height:1.6;resize:vertical}
 .rc-name{flex:1;font-size:14px;font-weight:600}
 .rc-radio{width:20px;height:20px;border-radius:10px;border:2px solid var(--line-2);flex-shrink:0}
 .route-card.sel .rc-radio{border:6px solid var(--rc);background:var(--bg)}
+/* 경로 비교 칩 기호 설명 */
+.cmp-legend{display:flex;gap:14px;font-size:12px;margin:0}
 /* 안전 경로 선택 이유 한 줄 */
 .rc-why{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--accent)}
 .rc-main{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
@@ -262,7 +264,7 @@ textarea.input{height:auto;padding:12px 14px;line-height:1.6;resize:vertical}
 .bar{display:block;height:6px;border-radius:3px;background:var(--line)}
 .bar>span{display:block;height:100%;border-radius:3px}
 .rc-main .tone-amber,.tone-amber{color:var(--amber-text)}
-.tone-accent{color:var(--accent-text)} .tone-danger{color:var(--danger-text)}
+.tone-accent{color:var(--accent-text)} .tone-danger{color:var(--danger-text)} .tone-good{color:var(--good)}
 .bg-accent{background:var(--m-cctv)} .bg-amber{background:var(--amber)} .bg-danger{background:var(--danger-text)}
 .rc-chips{display:flex;flex-wrap:wrap;gap:6px}
 .disclaimer{display:flex;gap:6px;padding:12px var(--gr) 0 var(--gl);font-size:12px;color:var(--text-3)}

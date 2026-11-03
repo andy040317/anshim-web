@@ -16,7 +16,28 @@ const SINGLE_MSG = {
   smallDiff: '다른 길과 위험도 차이가 거의 없어서 하나만 보여드려요.',
 };
 
-function RouteCard({ r, sel, base, onPick }) {
+// 경로 카드 칩 항목
+//   better: 'low' = 낮을수록 좋음, 'high' = 높을수록 좋음
+//   always: false 면 두 경로 모두 0일 때 칩을 숨김
+//   tone: 경로가 하나뿐일 때(비교 대상 없음) 쓰는 원래 색
+const METRICS = [
+  { key: 'barZoneM', better: 'low', icon: 'moon', tone: 'chip-amber',
+    text: v => (v > 0 ? '심야 유흥업소 밀집 구간 ' + fmtDist(v) + ' 통과' : '심야 유흥업소 밀집 구간 없음') },
+  { key: 'crimeHighM', better: 'low', tone: 'chip-amber', text: v => '범죄주의 7등급↑ ' + (v > 0 ? fmtDist(v) : '없음') },
+  { key: 'cameras', better: 'high', always: true, text: v => 'CCTV ' + v + '대 경유' },
+  { key: 'bell', better: 'high', text: v => '비상벨 ' + v + '개' },
+  { key: 'lampPct', better: 'high', always: true, text: v => '보안등 구간 ' + v + '%' },
+  { key: 'alleyPct', better: 'low', always: true, tone: 'chip-muted', text: v => '골목 ' + v + '%' },
+];
+
+// 다른 경로와 비교: 1 = 이 경로가 나음, -1 = 나쁨, 0 = 같음
+function compare(m, r, other) {
+  const d = r[m.key] - other[m.key];
+  if (d === 0) return 0;
+  return (m.better === 'low' ? -d : d) > 0 ? 1 : -1;
+}
+
+function RouteCard({ r, sel, base, other, onPick }) {
   const lv = riskLevel(r.risk);
   const mins = walkMin(r.len);
   const baseMin = base ? walkMin(base.len) : mins;
@@ -43,12 +64,22 @@ function RouteCard({ r, sel, base, onPick }) {
       </span>
       <span className="rc-chips">
         {r.motor && <span className="chip chip-danger"><Icon name="alert" size={12} />자동차전용도로 포함</span>}
-        {r.barZoneM > 0 && <span className="chip chip-amber"><Icon name="moon" size={12} />심야 유흥업소 밀집 구간 {fmtDist(r.barZoneM)} 통과</span>}
-        {r.crimeHighM > 0 && <span className="chip chip-amber">범죄주의 7등급↑ {fmtDist(r.crimeHighM)}</span>}
-        <span className={'chip ' + tone}>CCTV {r.cameras}대 경유</span>
-        {r.bell > 0 && <span className={'chip ' + tone}>비상벨 {r.bell}개</span>}
-        <span className={'chip ' + tone}>보안등 구간 {r.lampPct}%</span>
-        <span className="chip chip-muted">골목 {r.alleyPct}%</span>
+        {METRICS.map(m => {
+          // 두 경로 모두 0이면 숨김 (CCTV·보안등·골목은 항상 표시)
+          if (!m.always && !(r[m.key] > 0) && !(other && other[m.key] > 0)) return null;
+          // 비교 대상이 있으면 ▲/▼ 와 초록/빨강, 없으면 원래 색
+          const c = other ? compare(m, r, other) : null;
+          const cls = c === null ? (m.tone || tone) : c > 0 ? 'chip-good' : c < 0 ? 'chip-danger' : 'chip-muted';
+          return (
+            <span key={m.key} className={'chip ' + cls}>
+              {c === 1 && <span aria-hidden="true">▲</span>}
+              {c === -1 && <span aria-hidden="true">▼</span>}
+              {m.icon && <Icon name={m.icon} size={12} />}
+              {m.text(r[m.key])}
+              {c !== null && c !== 0 && <span className="sr-only">{c > 0 ? ' (다른 경로보다 좋음)' : ' (다른 경로보다 나쁨)'}</span>}
+            </span>
+          );
+        })}
       </span>
       {r.matchedPct < 60 && <span className="small muted">위험도 자료가 없는 구간이 많아 대구 평균으로 채운 부분이 있어요 ({100 - r.matchedPct}%).</span>}
     </button>
@@ -128,8 +159,12 @@ export default function RouteCompareScreen() {
               )}
               {/* 경로가 하나뿐인 이유를 원인별로 안내 (자세한 후보 정보는 시연 도구 > API 기록) */}
               {t.routes[0].single && t.engine === 'osrm' && <p className="note-box">{SINGLE_MSG[t.reason] || SINGLE_MSG.smallDiff}</p>}
+              {/* 두 경로를 비교할 때만: 칩 기호 설명 */}
+              {t.routes.length === 2 && <p className="cmp-legend"><span className="tone-good">▲ 다른 경로보다 좋음</span><span className="tone-danger">▼ 다른 경로보다 나쁨</span></p>}
               {t.routes.map(r => (
-                <RouteCard key={r.id} r={r} sel={r.id === t.selectedId} base={base} onPick={() => app.setTrip(x => ({ ...x, selectedId: r.id }))} />
+                <RouteCard key={r.id} r={r} sel={r.id === t.selectedId} base={base}
+                  other={t.routes.length === 2 ? t.routes.find(x => x.id !== r.id) : null}
+                  onPick={() => app.setTrip(x => ({ ...x, selectedId: r.id }))} />
               ))}
             </div>
             <p className="disclaimer"><Icon name="info" size={14} style={{ flexShrink: 0, marginTop: 2 }} />

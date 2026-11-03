@@ -5,7 +5,7 @@
 // 3) 후보마다 지나는 도로 구간의 '출발 시각 위험도'를 평균 (risk.js, 데이터 파이프라인 결과)
 //    위험도에는 범죄주의구간·유동인구·CCTV·비상벨·보안등·대피 거점·유흥주점·길 종류가 반영돼 있음
 // 4) 가장 짧은 경로 = "거리 우선", 우회 한도 안에서 위험도가 가장 낮은 경로 = "안전시설 경유"
-import { ROUTER_URL, ROUTER_MIN_GAP_MS, DETOUR_LIMIT, RISK_GAP, CRIME_CUT_MIN_M, CRIME_CUT_RATIO, PASS_FACILITY_M, SAMPLE_STEP_M, RISK_LEVELS } from '../config';
+import { ROUTER_URL, ROUTER_MIN_GAP_MS, DETOUR_LIMIT, RISK_GAP, CRIME_RISK_GAP, CRIME_CUT_MIN_M, CRIME_CUT_RATIO, PASS_FACILITY_M, SAMPLE_STEP_M, RISK_LEVELS } from '../config';
 import { distM, pathLength, distToPathM, samplePath, fmtDist } from './geo';
 import { nearby } from './facilities';
 import { routeRisk } from './risk';
@@ -153,17 +153,17 @@ export async function findRoutes(start, dest, hour, log) {
 
   // 안전 경로 고르기 (기준은 config.js 의 RISK_GAP, CRIME_CUT_*)
   //   ① 평균 위험도가 가장 낮은 후보가 RISK_GAP 점 이상 낮으면 → 그 후보
-  //   ② 아니면, 평균은 같거나 낮으면서 범죄주의 구간이 충분히 줄어든 후보 중 범죄주의 구간이 가장 짧은 것
+  //   ② 아니면, 평균이 CRIME_RISK_GAP 점 이상 낮으면서 범죄주의 구간이 충분히 줄어든 후보 중 범죄주의 구간이 가장 짧은 것
   let safe = null;
   const lowest = [...inLimit].sort((a, b) => a.risk - b.risk)[0];
   if (lowest && lowest.risk <= fast.risk - RISK_GAP) {
-    safe = { ...lowest, why: '평균 위험도 ' + (fast.risk - lowest.risk) + '점 낮음' };
+    safe = { ...lowest, basis: 'risk', why: '평균 위험도 ' + (fast.risk - lowest.risk) + '점 낮음' };
   } else {
     const cut = r => fast.crimeHighM - r.crimeHighM; // 줄어든 범죄주의 구간 길이(m)
     const byCrime = inLimit
-      .filter(r => r.risk <= fast.risk && cut(r) >= CRIME_CUT_MIN_M && r.crimeHighM <= fast.crimeHighM * (1 - CRIME_CUT_RATIO))
+      .filter(r => r.risk <= fast.risk - CRIME_RISK_GAP && cut(r) >= CRIME_CUT_MIN_M && r.crimeHighM <= fast.crimeHighM * (1 - CRIME_CUT_RATIO))
       .sort((a, b) => a.crimeHighM - b.crimeHighM || a.risk - b.risk)[0];
-    if (byCrime) safe = { ...byCrime, why: '범죄주의 구간 ' + fmtDist(cut(byCrime)) + ' 적음' };
+    if (byCrime) safe = { ...byCrime, basis: 'crime', why: '범죄주의 구간 ' + fmtDist(cut(byCrime)) + ' 적음 · 평균 위험도 ' + (fast.risk - byCrime.risk) + '점 낮음' };
   }
 
   // 하나만 보여주는 이유 (화면 문구용)
@@ -192,7 +192,8 @@ export async function findRoutes(start, dest, hour, log) {
   return {
     engine, engineError,
     routes: [
-      { ...safe, id: 'safe', name: '안전시설 경유 경로', detour: safe.len - fast.len },
+      // 이름: 평균 위험도로 고르면 '안전시설 경유 경로'(요구사항 이름), 범죄주의 구간으로 고르면 '범죄주의 구간 회피 경로'
+      { ...safe, id: 'safe', name: safe.basis === 'crime' ? '범죄주의 구간 회피 경로' : '안전시설 경유 경로', detour: safe.len - fast.len },
       { ...fast, id: 'fast', name: '거리 우선 경로', detour: 0 },
     ],
   };

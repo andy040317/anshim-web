@@ -15,9 +15,11 @@ export const SHARE_EXPIRE_MIN = 60; // 공유 링크 만료 시간 (임시값)
 export const DETOUR_LIMIT = 0.3;   // 우회 허용 한도: 기준 경로 대비 +30% (임시값)
 // 안전 경로 판단 기준 (둘 중 하나만 맞으면 안전 경로로 보여줌)
 //   ① 평균 위험도가 RISK_GAP 점 이상 낮음
-//   ② 범죄주의 7등급↑ 구간이 CRIME_CUT_MIN_M 이상, 그리고 CRIME_CUT_RATIO 이상 줄어듦 (평균 위험도는 같거나 낮을 때만)
+//   ② 범죄주의 7등급↑ 구간이 CRIME_CUT_MIN_M 이상, 그리고 CRIME_CUT_RATIO 이상 줄어듦
+//      + 평균 위험도도 CRIME_RISK_GAP 점 이상 낮을 때만 (점수가 같은데 '안전'이라고 하지 않도록)
 //      → 먼 거리에서는 평균 차이가 묻히기 쉬워서 '위험 구간 길이'로도 비교 (임시값)
 export const RISK_GAP = 2;
+export const CRIME_RISK_GAP = 1;
 export const CRIME_CUT_MIN_M = 200;
 export const CRIME_CUT_RATIO = 0.3;
 export const OFF_ROUTE_M = 30;     // 경로 이탈 기준 30m (FR-08)
