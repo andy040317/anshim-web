@@ -88,6 +88,9 @@ export async function routeRisk(pts, hour) {
   const kx = 111320 * Math.cos((samples[0].lat * Math.PI) / 180), ky = 111320;
   let riskSum = 0, matched = 0, lamp = 0, alley = 0, crimeHigh = 0, barZone = 0, motor = false;
   const night = NIGHT_HOURS.includes(hour);
+  const dark = DARK_HOURS.includes(hour);
+  // 점마다 '보안등 없는 골목급 길(또는 자료 없음)'인지 기록 → router.js 에서 CCTV·비상벨과 합쳐 어두운 길 판단
+  const noLamp = [];
   samples.forEach(p => {
     let best = null, bestD = RISK_MATCH_M * RISK_MATCH_M;
     keysOf(p).forEach(k => {
@@ -99,13 +102,14 @@ export async function routeRisk(pts, hour) {
         if (d < bestD) { bestD = d; best = { t, i }; }
       }
     });
-    if (!best) { riskSum += m.hourMean[hour]; return; } // 근처에 구간이 없으면 대구 평균
+    if (!best) { riskSum += m.hourMean[hour]; noLamp.push(true); return; } // 근처에 구간이 없으면 대구 평균 (어두운 길로 봄)
     const { t, i } = best;
     const r = t.risk[i * 24 + hour];
     riskSum += r;
     matched++;
     if (r >= 100) motor = true;          // 자동차전용도로
     if (t.lamp[i]) lamp++;
+    noLamp.push(!t.lamp[i] && t.alley[i] >= 8); // 골목 점수 8 이상(골목·샛길·산길)이면서 보안등 없음
     if (t.alley[i] >= 10) alley++;
     if (t.crime[i] >= 7) crimeHigh++;
     if (night && t.bar[i] >= 2) barZone++; // 심야에 100m 안 유흥주점 2곳 이상 = 밀집 구간
@@ -121,5 +125,7 @@ export async function routeRisk(pts, hour) {
     crimeHighM: crimeHigh * SAMPLE_M,         // 범죄주의 7등급 이상 구간 길이(m)
     barZoneM: barZone * SAMPLE_M,             // 심야 유흥업소 밀집 구간 길이(m), 낮에는 0
     motor,
+    samples,                                  // 20m 간격 점 (어두운 길 계산용)
+    noLamp: dark ? noLamp : null,             // 어두운 시간에만
   };
 }

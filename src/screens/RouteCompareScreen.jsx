@@ -13,17 +13,21 @@ import { COLORS, DETOUR_LIMIT } from '../config';
 const SINGLE_MSG = {
   noAlt: '다른 길 후보를 찾지 못해서 하나만 보여드려요.',
   tooLong: '다른 길은 ' + Math.round(DETOUR_LIMIT * 100) + '% 넘게 돌아가서 하나만 보여드려요.',
+  tooDark: '다른 길은 밤에 어두운 길(산길·공원 안쪽 등)을 길게 지나서 하나만 보여드려요.',
   smallDiff: '다른 길과 위험도 차이가 거의 없어서 하나만 보여드려요.',
 };
 
 // 경로 카드 칩 항목
 //   better: 'low' = 낮을수록 좋음, 'high' = 높을수록 좋음
-//   always: false 면 두 경로 모두 0일 때 칩을 숨김
+//   always: false 면 두 경로 모두 0일 때(min 이 있으면 min 미만일 때) 칩을 숨김
 //   tone: 경로가 하나뿐일 때(비교 대상 없음) 쓰는 원래 색
 const METRICS = [
   { key: 'barZoneM', better: 'low', icon: 'moon', tone: 'chip-amber',
     text: v => (v > 0 ? '심야 유흥업소 밀집 구간 ' + fmtDist(v) + ' 통과' : '심야 유흥업소 밀집 구간 없음') },
   { key: 'crimeHighM', better: 'low', tone: 'chip-amber', text: v => '범죄주의 7등급↑ ' + (v > 0 ? fmtDist(v) : '없음') },
+  // 어두운 길: 보안등·CCTV·비상벨 없는 골목급 길이 가장 길게 이어지는 길이 (어두운 시간에만 값이 있음)
+  { key: 'darkRunM', better: 'low', min: 100, icon: 'moon', tone: 'chip-amber',
+    text: v => (v >= 100 ? '어두운 길 최대 ' + fmtDist(v) + ' 연속' : '긴 어두운 길 없음') },
   { key: 'cameras', better: 'high', always: true, text: v => 'CCTV ' + v + '대 경유' },
   { key: 'bell', better: 'high', text: v => '비상벨 ' + v + '개' },
   { key: 'lampPct', better: 'high', always: true, text: v => '보안등 구간 ' + v + '%' },
@@ -66,7 +70,8 @@ function RouteCard({ r, sel, base, other, onPick }) {
         {r.motor && <span className="chip chip-danger"><Icon name="alert" size={12} />자동차전용도로 포함</span>}
         {METRICS.map(m => {
           // 두 경로 모두 0이면 숨김 (CCTV·보안등·골목은 항상 표시)
-          if (!m.always && !(r[m.key] > 0) && !(other && other[m.key] > 0)) return null;
+          const shown = x => x && x[m.key] >= (m.min || 1);
+          if (!m.always && !shown(r) && !shown(other)) return null;
           // 비교 대상이 있으면 ▲/▼ 와 초록/빨강, 없으면 원래 색
           const c = other ? compare(m, r, other) : null;
           const cls = c === null ? (m.tone || tone) : c > 0 ? 'chip-good' : c < 0 ? 'chip-danger' : 'chip-muted';

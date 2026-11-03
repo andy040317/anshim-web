@@ -5,7 +5,7 @@
 // 3) 후보마다 지나는 도로 구간의 '출발 시각 위험도'를 평균 (risk.js, 데이터 파이프라인 결과)
 //    위험도에는 범죄주의구간·유동인구·CCTV·비상벨·보안등·대피 거점·유흥주점·길 종류가 반영돼 있음
 // 4) 가장 짧은 경로 = "거리 우선", 우회 한도 안에서 위험도가 가장 낮은 경로 = "안전시설 경유"
-import { ROUTER_URL, ROUTER_MIN_GAP_MS, DETOUR_LIMIT, RISK_GAP, CRIME_RISK_GAP, CRIME_CUT_MIN_M, CRIME_CUT_RATIO, PASS_FACILITY_M, SAMPLE_STEP_M, RISK_LEVELS } from '../config';
+import { ROUTER_URL, ROUTER_MIN_GAP_MS, DETOUR_LIMIT, RISK_GAP, CRIME_RISK_GAP, CRIME_CUT_MIN_M, CRIME_CUT_RATIO, DARK_RUN_MAX_M, DARK_FAC_M, PASS_FACILITY_M, SAMPLE_STEP_M, RISK_LEVELS } from '../config';
 import { distM, pathLength, distToPathM, samplePath, fmtDist } from './geo';
 import { nearby } from './facilities';
 import { routeRisk } from './risk';
@@ -93,10 +93,23 @@ function passedFacilities(pts) {
   return { cameras: [...cctv].reduce((s, f) => s + f.n, 0), bell: bell.size };
 }
 
+// 어두운 길이 가장 길게 이어지는 길이(m)
+//   보안등 없는 골목급 길(또는 자료 없음)인데 CCTV·비상벨도 DARK_FAC_M 안에 없는 점이 연속되는 길이
+function longestDarkRun(samples, noLamp) {
+  if (!noLamp) return 0; // 밝은 시간
+  let best = 0, run = 0;
+  samples.forEach((p, i) => {
+    const isDark = noLamp[i] && !nearby('cctv', p, DARK_FAC_M).length && !nearby('bell', p, DARK_FAC_M).length;
+    run = isDark ? run + 1 : 0;
+    best = Math.max(best, run);
+  });
+  return best * 20; // 점 간격 20m
+}
+
 // 경로 하나 평가: 길이 + 출발 시각 위험도 + 근거
 export async function scoreRoute(pts, hour) {
-  const r = await routeRisk(pts, hour);
-  return { len: pathLength(pts), ...passedFacilities(pts), ...r };
+  const { samples, noLamp, ...r } = await routeRisk(pts, hour);
+  return { len: pathLength(pts), ...passedFacilities(pts), ...r, darkRunM: longestDarkRun(samples, noLamp) };
 }
 
 export function riskLevel(r) {
@@ -146,31 +159,37 @@ export async function findRoutes(start, dest, hour, log) {
   fast.verdict = '최단 (기준)';
   const inLimit = unique.filter(r => r !== fast && r.len <= fast.len * (1 + DETOUR_LIMIT)); // 우회 허용 한도 안에서
   unique.forEach(r => { if (r !== fast && !inLimit.includes(r)) r.verdict = Math.round(DETOUR_LIMIT * 100) + '% 넘게 돌아가서 제외'; });
+  // 어두운 길(밤 산길 등)을 길게 지나는 후보는 안전 경로에서 제외 (최단 경로보다 어두운 길이 길 때만)
+  const tooDark = r => r.darkRunM >= DARK_RUN_MAX_M && r.darkRunM > fast.darkRunM;
+  const usable = inLimit.filter(r => !tooDark(r));
   inLimit.forEach(r => {
     const d = fast.risk - r.risk; // 양수면 최단 경로보다 안전
-    r.verdict = d > 0 ? d + '점 낮음' : d < 0 ? -d + '점 높음' : '위험도 같음';
+    r.verdict = tooDark(r) ? '어두운 길 ' + fmtDist(r.darkRunM) + ' 이어져서 제외'
+      : d > 0 ? d + '점 낮음' : d < 0 ? -d + '점 높음' : '위험도 같음';
   });
 
   // 안전 경로 고르기 (기준은 config.js 의 RISK_GAP, CRIME_CUT_*)
   //   ① 평균 위험도가 가장 낮은 후보가 RISK_GAP 점 이상 낮으면 → 그 후보
   //   ② 아니면, 평균이 CRIME_RISK_GAP 점 이상 낮으면서 범죄주의 구간이 충분히 줄어든 후보 중 범죄주의 구간이 가장 짧은 것
   let safe = null;
-  const lowest = [...inLimit].sort((a, b) => a.risk - b.risk)[0];
+  const lowest = [...usable].sort((a, b) => a.risk - b.risk)[0];
   if (lowest && lowest.risk <= fast.risk - RISK_GAP) {
     safe = { ...lowest, basis: 'risk', why: '평균 위험도 ' + (fast.risk - lowest.risk) + '점 낮음' };
   } else {
     const cut = r => fast.crimeHighM - r.crimeHighM; // 줄어든 범죄주의 구간 길이(m)
-    const byCrime = inLimit
+    const byCrime = usable
       .filter(r => r.risk <= fast.risk - CRIME_RISK_GAP && cut(r) >= CRIME_CUT_MIN_M && r.crimeHighM <= fast.crimeHighM * (1 - CRIME_CUT_RATIO))
       .sort((a, b) => a.crimeHighM - b.crimeHighM || a.risk - b.risk)[0];
     if (byCrime) safe = { ...byCrime, basis: 'crime', why: '범죄주의 구간 ' + fmtDist(cut(byCrime)) + ' 적음 · 평균 위험도 ' + (fast.risk - byCrime.risk) + '점 낮음' };
   }
 
   // 하나만 보여주는 이유 (화면 문구용)
-  //   noAlt: 다른 길 후보가 없음 / tooLong: 다른 길이 너무 돌아감 / smallDiff: 위험도 차이가 거의 없음
+  //   noAlt: 다른 길 후보가 없음 / tooLong: 다른 길이 너무 돌아감 / tooDark: 다른 길은 어두운 길을 길게 지남
+  //   smallDiff: 위험도 차이가 거의 없음
   let reason = null;
   if (unique.length === 1) reason = 'noAlt';
   else if (!inLimit.length) reason = 'tooLong';
+  else if (!usable.length) reason = 'tooDark';
   else if (!safe) reason = 'smallDiff';
   else scored.find(r => r.pts === safe.pts).verdict = '안전 경로로 선택 (' + safe.why + ')';
 

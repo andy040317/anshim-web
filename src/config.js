@@ -20,6 +20,13 @@ export const DETOUR_LIMIT = 0.3;   // 우회 허용 한도: 기준 경로 대비
 //      → 먼 거리에서는 평균 차이가 묻히기 쉬워서 '위험 구간 길이'로도 비교 (임시값)
 export const RISK_GAP = 2;
 export const CRIME_RISK_GAP = 1;
+// 어두운 길 (어두운 시간 18~06시에만 계산)
+//   어두운 길 = 위험도 자료가 없는 곳, 또는 '보안등 없음 + 골목급 길 + CCTV·비상벨 DARK_FAC_M 밖'
+//   (큰길·중간 길은 보안등 자료에 없는 가로등이 있다고 보고 제외)
+//   안전 경로 후보가 어두운 길을 DARK_RUN_MAX_M 이상 이어서 지나고, 그 길이가 최단 경로보다 길면 후보에서 뺌
+//   → 밤 산길·공원 안쪽 길이 '범죄 자료가 없어서' 안전 경로로 뽑히는 것을 막기 위함 (임시값)
+export const DARK_RUN_MAX_M = 500;
+export const DARK_FAC_M = 50;
 export const CRIME_CUT_MIN_M = 200;
 export const CRIME_CUT_RATIO = 0.3;
 export const OFF_ROUTE_M = 30;     // 경로 이탈 기준 30m (FR-08)
