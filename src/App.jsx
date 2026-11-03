@@ -72,6 +72,8 @@ export default function App({ onReset }) {
   const [viewAs, setViewAs] = useState('user');       // 'user' 또는 'guardian'(보호자 시점)
   // 메인 지도 레이어 (기본 모두 켜짐. 유흥주점은 지도에 표시하지 않음)
   const [layers, setLayers] = useState({ cctv: true, bell: true, lamp: true, police: true, fire: true, store: true });
+  // 지도 종류: 'roadmap'(일반) 또는 'hybrid'(위성+이름). 메인에서 바꾸면 모든 화면 지도에 같이 적용
+  const [mapType, setMapType] = useState('roadmap');
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelTab, setPanelTab] = useState('structure');
   const [kakaoState, setKakaoState] = useState({ status: 'loading', error: '' });
@@ -378,7 +380,7 @@ export default function App({ onReset }) {
   const ctx = {
     users, me, screen, go: setScreen, prefillId, consent, setConsent, demo, setDemo, guardians, gpsInfo, setGuideMode,
     myPos, locate, startPick, setStartPick, destPick, setDestPick, pickPoint, openPick, choosePlace, searchMode, setSearchMode, recent,
-    trip, setTrip, guide, share, sos, setSos, sheet, setSheet, toast, showToast, logs, setLogs, viewAs, setViewAs, layers, setLayers,
+    trip, setTrip, guide, share, sos, setSos, sheet, setSheet, toast, showToast, logs, setLogs, viewAs, setViewAs, layers, setLayers, mapType, setMapType,
     panelOpen, setPanelOpen, panelTab, setPanelTab, metaKey, kakaoState, facVersion,
     clock, clockText: fmtClock(clock()), call, pushLog,
     login, checkId, signup, decideConsent, logout, requestRoutes, routeStart, startGuide, endGuide, triggerDeviation, reroute, skipToArrival,

@@ -67,7 +67,7 @@ export default function GuideScreen() {
     <div className="screen">
       <div className="map-area">
         <KakaoMap view={view} routes={routes} user={pos} userStale={userStale} dest={g.dest}
-          layers={{ cctv: true, bell: true }} facVersion={app.facVersion} follow label="안내 중인 경로 지도" />
+          layers={{ cctv: true, bell: true }} facVersion={app.facVersion} follow mapType={app.mapType} label="안내 중인 경로 지도" />
         <div className="float-top">
           <section className="turn-card card" aria-live="polite">
             <div className="turn-top">

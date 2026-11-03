@@ -17,7 +17,7 @@ export default function MainScreen() {
   const start = app.routeStart();           // 고른 출발지 또는 내 위치
   const dest = app.destPick;
   const [view, setView] = useState(null);
-  const [satellite, setSatellite] = useState(false); // true면 위성 지도(HYBRID), false면 일반 지도
+  const satellite = app.mapType === 'hybrid'; // 지도 종류는 앱 전체가 같이 씀 (App.jsx의 mapType)
 
   // 출발·도착이 바뀌면 지도를 그에 맞춰 옮김
   useEffect(() => {
@@ -54,7 +54,7 @@ export default function MainScreen() {
       <div className="map-area">
         <KakaoMap view={view} user={denied ? null : app.myPos} userStale={app.demo.gpsLost} start={app.startPick} dest={dest}
           layers={app.layers} facVersion={app.facVersion} onMapClick={app.openPick} label="대구 안전시설 지도"
-          mapType={satellite ? 'hybrid' : 'roadmap'} />
+          mapType={app.mapType} />
 
         <div className="float-top">
           <div className="search-card">
@@ -94,7 +94,7 @@ export default function MainScreen() {
             <div className="fab-col">
               {/* 일반/위성 전환 버튼: 버튼 글자는 '누르면 바뀔 지도'를 보여줌 */}
               <button className="fab fab-type" aria-label={satellite ? '일반 지도로 보기' : '위성 지도로 보기'} aria-pressed={satellite ? 'true' : 'false'}
-                onClick={() => setSatellite(v => !v)}>
+                onClick={() => app.setMapType(satellite ? 'roadmap' : 'hybrid')}>
                 <Icon name={satellite ? 'map' : 'layers'} size={18} /><span>{satellite ? '일반' : '위성'}</span>
               </button>
               <button className="fab" aria-label="내 위치로 이동" onClick={myCenter}><Icon name="locate" size={22} /></button>

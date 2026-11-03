@@ -89,7 +89,7 @@ export default function RouteCompareScreen() {
       <TopBar title="경로 비교" sub={startName + ' → ' + t.dest.name} onBack={() => app.go('main')} />
       <div className="scroll">
         <div className="route-map">
-          <KakaoMap view={view} routes={mapRoutes} start={t.start} dest={t.dest} layers={{ cctv: true, bell: true }} facVersion={app.facVersion} label="후보 경로 지도" />
+          <KakaoMap view={view} routes={mapRoutes} start={t.start} dest={t.dest} layers={{ cctv: true, bell: true }} facVersion={app.facVersion} mapType={app.mapType} label="후보 경로 지도" />
           <TimePill night={timeInfo(t.hour).dark} text={t.hour + '시 출발 · ' + timeInfo(t.hour).label} />
         </div>
 

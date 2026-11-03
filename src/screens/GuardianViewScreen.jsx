@@ -72,7 +72,7 @@ export default function GuardianViewScreen() {
       <div className="map-area">
         <KakaoMap view={view} routes={ahead ? [{ pts: ahead, color: COLORS.safe, width: 6, opacity: 0.85 }] : []}
           user={pos} userStale={delayed} dest={g && !g.arrived ? g.dest : null} layers={{ cctv: true, bell: true }} facVersion={app.facVersion}
-          follow label={name + '님의 마지막 위치 지도'} />
+          follow mapType={app.mapType} label={name + '님의 마지막 위치 지도'} />
         <div className="map-bottom">
           <section className="gv-card" aria-label="위치 수신 정보">
             {s.type === 'sos' && (

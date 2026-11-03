@@ -168,7 +168,7 @@ export default function SosFlow() {
       </header>
       <div className="sos-map">
         <KakaoMap view={view} user={pos} userStale={stale} routes={mapRoutes} marks={marks}
-          onMarkClick={i => pick(cands[i])} facVersion={app.facVersion} follow label="SOS 지도: 내 위치와 가까운 대피 후보" />
+          onMarkClick={i => pick(cands[i])} facVersion={app.facVersion} follow mapType={app.mapType} label="SOS 지도: 내 위치와 가까운 대피 후보" />
         {!pos && <div className="sos-map-msg">위치를 확인하지 못해 지도에 표시할 수 없어요.</div>}
       </div>
       <div className="scroll sos-body">
