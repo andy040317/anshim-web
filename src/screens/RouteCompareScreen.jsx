@@ -104,7 +104,6 @@ export default function RouteCompareScreen() {
           <div className="state-msg">
             <span className="spinner" aria-hidden="true" />
             <b>도보 경로 후보를 받고 있어요</b>
-            <span className="small">공개 경로 서버 이용 규칙(1초에 1번) 때문에 몇 초 걸려요. 팀 서버로 바꾸면 빨라져요.</span>
           </div>
         )}
         {t.status === 'error' && (
