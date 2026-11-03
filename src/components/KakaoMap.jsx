@@ -4,7 +4,8 @@
 //             user={내위치} start={출발} dest={도착} routes={[{ pts, color, dotted, width, opacity }]}
 //             layers={{ cctv: true, bell: true, lamp: true, fire: true, police: true, store: true }} facVersion={app.facVersion}
 //             marks={[{ lat, lng, label: '1', kind: 'store', selected }]} onMarkClick={i => ...}
-//             onMapClick={p => ...} follow />
+//             onMapClick={p => ...} follow mapType="roadmap" />
+// mapType: 'roadmap'(일반 지도, 기본값) 또는 'hybrid'(위성 사진 + 도로·건물 이름)
 // view.key 가 바뀔 때만 지도를 그 위치로 옮김 (사용자가 끌어서 움직인 지도를 함부로 되돌리지 않기 위해)
 import { useEffect, useRef, useState } from 'react';
 import { loadKakaoMap } from '../lib/loadKakaoMap';
@@ -22,7 +23,7 @@ function el(className, html) {
   return d;
 }
 
-export default function KakaoMap({ view, user, userStale, start, dest, routes = [], layers, facVersion, marks, onMarkClick, onMapClick, follow, label }) {
+export default function KakaoMap({ view, user, userStale, start, dest, routes = [], layers, facVersion, marks, onMarkClick, onMapClick, follow, label, mapType = 'roadmap' }) {
   const markClickRef = useRef(onMarkClick);
   markClickRef.current = onMarkClick;
   const boxRef = useRef(null);     // 지도가 그려질 div
@@ -63,6 +64,14 @@ export default function KakaoMap({ view, user, userStale, start, dest, routes = 
     ro.observe(boxRef.current);
     return () => ro.disconnect();
   }, [ready]);
+
+  // 지도 종류 바꾸기: 일반 지도 ↔ 위성(HYBRID)
+  // HYBRID = 위성 사진 위에 도로·건물 이름을 같이 보여주는 카카오맵 기본 지도 종류 (추가 키 필요 없음)
+  useEffect(() => {
+    if (!ready) return;
+    const kakao = kakaoRef.current;
+    mapRef.current.setMapTypeId(mapType === 'hybrid' ? kakao.maps.MapTypeId.HYBRID : kakao.maps.MapTypeId.ROADMAP);
+  }, [ready, mapType]);
 
   // 2) 보는 위치 옮기기: 'center'(한 점 중심) 또는 'fit'(여러 점이 다 보이게)
   const viewKey = view ? view.key : null;
