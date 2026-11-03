@@ -5,10 +5,11 @@
 // 3) 후보마다 지나는 도로 구간의 '출발 시각 위험도'를 평균 (risk.js, 데이터 파이프라인 결과)
 //    위험도에는 범죄주의구간·유동인구·CCTV·비상벨·보안등·대피 거점·유흥주점·길 종류가 반영돼 있음
 // 4) 가장 짧은 경로 = "거리 우선", 우회 한도 안에서 위험도가 가장 낮은 경로 = "안전시설 경유"
-import { ROUTER_URL, ROUTER_MIN_GAP_MS, DETOUR_LIMIT, RISK_GAP, CRIME_RISK_GAP, CRIME_CUT_MIN_M, CRIME_CUT_RATIO, DARK_RUN_MAX_M, DARK_FAC_M, PASS_FACILITY_M, SAMPLE_STEP_M, RISK_LEVELS } from '../config';
+import { ROUTER_URL, ROUTER_MIN_GAP_MS, DETOUR_LIMIT, RISK_GAP, CRIME_RISK_GAP, CRIME_CUT_MIN_M, CRIME_CUT_RATIO, DARK_RUN_MAX_M, DARK_FAC_M, SAFE_VIA_STEP_M, SAFE_MAX_VIAS, PASS_FACILITY_M, SAMPLE_STEP_M, RISK_LEVELS } from '../config';
 import { distM, pathLength, distToPathM, samplePath, fmtDist } from './geo';
 import { nearby } from './facilities';
 import { routeRisk } from './risk';
+import { findSafePath } from './safepath';
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
@@ -38,6 +39,32 @@ async function osrmRoute(coords, alternatives, log, note) {
     throw new Error(msg);
   } finally {
     clearTimeout(timer);
+  }
+}
+
+// 위험도 반영으로 찾은 길에서 OSRM 에 넘길 경유지 고르기 (SAFE_VIA_STEP_M 간격, 양 끝 100m 는 제외)
+function pickPathVias(pts, total) {
+  const step = Math.max(SAFE_VIA_STEP_M, total / (SAFE_MAX_VIAS + 1));
+  const vias = [];
+  let acc = 0, next = step;
+  for (let i = 1; i < pts.length - 1; i++) {
+    acc += distM(pts[i - 1], pts[i]);
+    if (acc >= next && total - acc > 100) { vias.push(pts[i]); next = acc + step; }
+  }
+  return vias;
+}
+
+// 위험도 반영 후보: 브라우저에서 안전한 길을 찾고, 그 길을 따라가도록 OSRM 에 경유지로 요청 (회전 안내를 받기 위해)
+async function safePathCandidate(start, dest, hour, log) {
+  const sp = await findSafePath(start, dest, hour);
+  if (!sp) { log && log('계산', '위험도 반영 탐색', 200, '우회 한도 안에서 찾지 못함'); return null; }
+  log && log('계산', '위험도 반영 탐색', 200, fmtDist(sp.len) + ' · 도로망 칸 ' + sp.tiles + '개 · 위험도 가중 ' + sp.k);
+  try {
+    const r = await osrmRoute([start, ...pickPathVias(sp.pts, sp.len), dest], false, log, '위험도 반영 경로 따라가기');
+    return { ...toRoute(r[0]), src: '위험도 반영 탐색' };
+  } catch (e) {
+    // OSRM 이 실패하면 찾은 길 모양을 그대로 사용 (회전 안내는 없음)
+    return { pts: [start, ...sp.pts, dest], steps: [], engine: 'osrm', src: '위험도 반영 탐색 (자체 경로)' };
   }
 }
 
@@ -139,6 +166,13 @@ export async function findRoutes(start, dest, hour, log) {
         const r = await osrmRoute([start, vias[i], dest], false, log, 'CCTV 밀집 지점 경유 ' + (i + 1));
         candidates.push({ ...toRoute(r[0]), src: 'CCTV 경유 ' + (i + 1) });
       } catch (e) { /* 경유 후보 하나가 실패해도 나머지로 계속 */ }
+    }
+    // 위험도 반영 후보 (도로망 데이터로 위험한 길을 피해서 찾은 길)
+    try {
+      const s = await safePathCandidate(start, dest, hour, log);
+      if (s) candidates.push(s);
+    } catch (e) {
+      log && log('계산', '위험도 반영 탐색', 'ERR', e.message);
     }
   } catch (e) {
     engine = 'straight';

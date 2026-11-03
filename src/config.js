@@ -27,6 +27,13 @@ export const CRIME_RISK_GAP = 1;
 //   → 밤 산길·공원 안쪽 길이 '범죄 자료가 없어서' 안전 경로로 뽑히는 것을 막기 위함 (임시값)
 export const DARK_RUN_MAX_M = 500;
 export const DARK_FAC_M = 50;
+
+// 위험도 반영 길 찾기 (src/lib/safepath.js, 데이터: public/data/graph/)
+export const GRAPH_DIR = '/data/graph';
+export const SAFE_DARK_MULT = 4;     // 어두운 시간에 어두운 길은 실제 길이의 4배로 쳐서 피하게 함 (임시값)
+export const SAFE_MAX_TILES = 300;   // 한 번에 불러올 도로망 칸 최대 개수 (너무 먼 거리는 계산 안 함)
+export const SAFE_VIA_STEP_M = 600;  // 찾은 길을 OSRM 에 넘길 때 경유지 간격
+export const SAFE_MAX_VIAS = 20;     // 경유지 최대 개수
 export const CRIME_CUT_MIN_M = 200;
 export const CRIME_CUT_RATIO = 0.3;
 export const OFF_ROUTE_M = 30;     // 경로 이탈 기준 30m (FR-08)

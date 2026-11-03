@@ -56,6 +56,7 @@ py scripts/step2_road_network.py     # 대구 도보 도로망 → 50m 구간
 py scripts/step3_attach_features.py  # 구간마다 범죄주의·CCTV·비상벨·보안등·거점·유흥주점·행정동
 py scripts/step4_risk_score.py       # 구간 × 24시간 위험도 (가중치: scripts/config_risk.json)
 py scripts/step5_export_web.py       # 웹용 1km 칸 파일로 변환 → public/data/risk/
+py scripts/step6_export_graph.py     # 위험도 반영 길 찾기용 도로망 칸 파일 → public/data/graph/ (step4 를 다시 돌리면 이것도 다시)
 ```
 
 **웹에서 경로 위험도 계산** (`src/lib/risk.js`)
