@@ -252,6 +252,8 @@ textarea.input{height:auto;padding:12px 14px;line-height:1.6;resize:vertical}
 .rc-name{flex:1;font-size:14px;font-weight:600}
 .rc-radio{width:20px;height:20px;border-radius:10px;border:2px solid var(--line-2);flex-shrink:0}
 .route-card.sel .rc-radio{border:6px solid var(--rc);background:var(--bg)}
+/* 안전 경로 선택 이유 한 줄 */
+.rc-why{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--accent)}
 .rc-main{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .rc-main b{font-size:26px;font-weight:700;line-height:1.2;font-variant-numeric:tabular-nums}
 .rc-main span{font-size:14px;color:var(--text-2);font-variant-numeric:tabular-nums}

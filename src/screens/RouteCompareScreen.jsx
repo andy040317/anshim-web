@@ -13,7 +13,7 @@ import { COLORS, DETOUR_LIMIT } from '../config';
 const SINGLE_MSG = {
   noAlt: '다른 길 후보를 찾지 못해서 하나만 보여드려요.',
   tooLong: '다른 길은 ' + Math.round(DETOUR_LIMIT * 100) + '% 넘게 돌아가서 하나만 보여드려요.',
-  smallDiff: '다른 길과 위험도 차이가 거의 없어서(2점 미만) 하나만 보여드려요.',
+  smallDiff: '다른 길과 위험도 차이가 거의 없어서 하나만 보여드려요.',
 };
 
 function RouteCard({ r, sel, base, onPick }) {
@@ -35,6 +35,8 @@ function RouteCard({ r, sel, base, onPick }) {
         {r.detour > 0 && <span className="tone-amber">+{fmtDist(r.detour)}{mins > baseMin ? ' · +' + (mins - baseMin) + '분' : ''} 우회</span>}
         {isFast && <span>기준 경로</span>}
       </span>
+      {/* 안전 경로로 고른 이유 (예: 평균 위험도 3점 낮음 / 범죄주의 구간 1.9km 적음) */}
+      {r.why && <span className="rc-why"><Icon name="shield" size={14} />{r.why}</span>}
       <span className="rc-risk">
         <span className="rc-risk-top"><span>상대 위험도</span><b className={'tone-' + lv.tone}>{r.risk} · {lv.label}</b></span>
         <span className="bar"><span className={'bg-' + lv.tone} style={{ width: Math.max(4, r.risk) + '%' }} /></span>

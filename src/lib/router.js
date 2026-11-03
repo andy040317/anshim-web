@@ -5,7 +5,7 @@
 // 3) 후보마다 지나는 도로 구간의 '출발 시각 위험도'를 평균 (risk.js, 데이터 파이프라인 결과)
 //    위험도에는 범죄주의구간·유동인구·CCTV·비상벨·보안등·대피 거점·유흥주점·길 종류가 반영돼 있음
 // 4) 가장 짧은 경로 = "거리 우선", 우회 한도 안에서 위험도가 가장 낮은 경로 = "안전시설 경유"
-import { ROUTER_URL, ROUTER_MIN_GAP_MS, DETOUR_LIMIT, PASS_FACILITY_M, SAMPLE_STEP_M, RISK_LEVELS } from '../config';
+import { ROUTER_URL, ROUTER_MIN_GAP_MS, DETOUR_LIMIT, RISK_GAP, CRIME_CUT_MIN_M, CRIME_CUT_RATIO, PASS_FACILITY_M, SAMPLE_STEP_M, RISK_LEVELS } from '../config';
 import { distM, pathLength, distToPathM, samplePath, fmtDist } from './geo';
 import { nearby } from './facilities';
 import { routeRisk } from './risk';
@@ -146,19 +146,33 @@ export async function findRoutes(start, dest, hour, log) {
   fast.verdict = '최단 (기준)';
   const inLimit = unique.filter(r => r !== fast && r.len <= fast.len * (1 + DETOUR_LIMIT)); // 우회 허용 한도 안에서
   unique.forEach(r => { if (r !== fast && !inLimit.includes(r)) r.verdict = Math.round(DETOUR_LIMIT * 100) + '% 넘게 돌아가서 제외'; });
-  const safe = [...inLimit].sort((a, b) => a.risk - b.risk)[0];
   inLimit.forEach(r => {
     const d = fast.risk - r.risk; // 양수면 최단 경로보다 안전
     r.verdict = d > 0 ? d + '점 낮음' : d < 0 ? -d + '점 높음' : '위험도 같음';
   });
 
+  // 안전 경로 고르기 (기준은 config.js 의 RISK_GAP, CRIME_CUT_*)
+  //   ① 평균 위험도가 가장 낮은 후보가 RISK_GAP 점 이상 낮으면 → 그 후보
+  //   ② 아니면, 평균은 같거나 낮으면서 범죄주의 구간이 충분히 줄어든 후보 중 범죄주의 구간이 가장 짧은 것
+  let safe = null;
+  const lowest = [...inLimit].sort((a, b) => a.risk - b.risk)[0];
+  if (lowest && lowest.risk <= fast.risk - RISK_GAP) {
+    safe = { ...lowest, why: '평균 위험도 ' + (fast.risk - lowest.risk) + '점 낮음' };
+  } else {
+    const cut = r => fast.crimeHighM - r.crimeHighM; // 줄어든 범죄주의 구간 길이(m)
+    const byCrime = inLimit
+      .filter(r => r.risk <= fast.risk && cut(r) >= CRIME_CUT_MIN_M && r.crimeHighM <= fast.crimeHighM * (1 - CRIME_CUT_RATIO))
+      .sort((a, b) => a.crimeHighM - b.crimeHighM || a.risk - b.risk)[0];
+    if (byCrime) safe = { ...byCrime, why: '범죄주의 구간 ' + fmtDist(cut(byCrime)) + ' 적음' };
+  }
+
   // 하나만 보여주는 이유 (화면 문구용)
-  //   noAlt: 다른 길 후보가 없음 / tooLong: 다른 길이 너무 돌아감 / smallDiff: 위험도 차이가 2점 미만
+  //   noAlt: 다른 길 후보가 없음 / tooLong: 다른 길이 너무 돌아감 / smallDiff: 위험도 차이가 거의 없음
   let reason = null;
   if (unique.length === 1) reason = 'noAlt';
-  else if (!safe) reason = 'tooLong';
-  else if (safe.risk > fast.risk - 2) reason = 'smallDiff';
-  else safe.verdict = '안전 경로로 선택 (' + (fast.risk - safe.risk) + '점 낮음)';
+  else if (!inLimit.length) reason = 'tooLong';
+  else if (!safe) reason = 'smallDiff';
+  else scored.find(r => r.pts === safe.pts).verdict = '안전 경로로 선택 (' + safe.why + ')';
 
   // API 기록에 후보별 길이·위험도·판정 남기기 (하나만 나온 이유를 확인하는 용도)
   // 기록은 최신이 위에 쌓이므로, 거꾸로 넣어야 ①②③ 순서로 보임
@@ -171,7 +185,7 @@ export async function findRoutes(start, dest, hour, log) {
     });
   }
 
-  // 안전 경로가 없거나 위험도 차이가 2점 미만이면 하나만 보여줌 (FR-04)
+  // 안전 경로가 없으면 하나만 보여줌 (FR-04)
   if (reason) {
     return { engine, engineError, reason, routes: [{ ...fast, id: 'one', name: '추천 경로', single: true, detour: 0 }] };
   }
