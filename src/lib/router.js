@@ -6,7 +6,7 @@
 //    위험도에는 범죄주의구간·유동인구·CCTV·비상벨·보안등·대피 거점·유흥주점·길 종류가 반영돼 있음
 // 4) 가장 짧은 경로 = "거리 우선", 우회 한도 안에서 위험도가 가장 낮은 경로 = "안전시설 경유"
 import { ROUTER_URL, ROUTER_MIN_GAP_MS, DETOUR_LIMIT, PASS_FACILITY_M, SAMPLE_STEP_M, RISK_LEVELS } from '../config';
-import { distM, pathLength, distToPathM, samplePath } from './geo';
+import { distM, pathLength, distToPathM, samplePath, fmtDist } from './geo';
 import { nearby } from './facilities';
 import { routeRisk } from './risk';
 
@@ -118,12 +118,13 @@ export async function findRoutes(start, dest, hour, log) {
   let engine = 'osrm', engineError = null;
   try {
     const direct = await osrmRoute([start, dest], true, log, '바로 가는 길');
-    candidates = direct.map(toRoute);
-    const vias = pickViaPoints(start, dest, candidates[0], candidates.length >= 2 ? 1 : 2);
+    candidates = direct.map((r, i) => ({ ...toRoute(r), src: '바로 가는 길 ' + (i + 1) }));
+    // CCTV 경유 후보는 항상 최대 2개 (공개 서버가 다른 길을 1개만 주는 경우가 많아서 비교 후보를 늘림)
+    const vias = pickViaPoints(start, dest, candidates[0], 2);
     for (let i = 0; i < vias.length; i++) {
       try {
         const r = await osrmRoute([start, vias[i], dest], false, log, 'CCTV 밀집 지점 경유 ' + (i + 1));
-        candidates.push(toRoute(r[0]));
+        candidates.push({ ...toRoute(r[0]), src: 'CCTV 경유 ' + (i + 1) });
       } catch (e) { /* 경유 후보 하나가 실패해도 나머지로 계속 */ }
     }
   } catch (e) {
@@ -136,16 +137,43 @@ export async function findRoutes(start, dest, hour, log) {
   const scored = (await Promise.all(candidates.map(async c => ({ ...c, ...(await scoreRoute(c.pts, hour)) }))))
     .sort((a, b) => a.len - b.len);
   const unique = [];
-  scored.forEach(r => { if (!unique.some(u => isSame(u, r))) unique.push(r); });
+  scored.forEach(r => {
+    if (unique.some(u => isSame(u, r))) r.verdict = '같은 길이라 제외';
+    else unique.push(r);
+  });
 
   const fast = unique[0];
-  const safe = unique
-    .filter(r => r !== fast && r.len <= fast.len * (1 + DETOUR_LIMIT)) // 우회 허용 한도 안에서
-    .sort((a, b) => a.risk - b.risk)[0];
+  fast.verdict = '최단 (기준)';
+  const inLimit = unique.filter(r => r !== fast && r.len <= fast.len * (1 + DETOUR_LIMIT)); // 우회 허용 한도 안에서
+  unique.forEach(r => { if (r !== fast && !inLimit.includes(r)) r.verdict = Math.round(DETOUR_LIMIT * 100) + '% 넘게 돌아가서 제외'; });
+  const safe = [...inLimit].sort((a, b) => a.risk - b.risk)[0];
+  inLimit.forEach(r => {
+    const d = fast.risk - r.risk; // 양수면 최단 경로보다 안전
+    r.verdict = d > 0 ? d + '점 낮음' : d < 0 ? -d + '점 높음' : '위험도 같음';
+  });
+
+  // 하나만 보여주는 이유 (화면 문구용)
+  //   noAlt: 다른 길 후보가 없음 / tooLong: 다른 길이 너무 돌아감 / smallDiff: 위험도 차이가 2점 미만
+  let reason = null;
+  if (unique.length === 1) reason = 'noAlt';
+  else if (!safe) reason = 'tooLong';
+  else if (safe.risk > fast.risk - 2) reason = 'smallDiff';
+  else safe.verdict = '안전 경로로 선택 (' + (fast.risk - safe.risk) + '점 낮음)';
+
+  // API 기록에 후보별 길이·위험도·판정 남기기 (하나만 나온 이유를 확인하는 용도)
+  // 기록은 최신이 위에 쌓이므로, 거꾸로 넣어야 ①②③ 순서로 보임
+  if (log) {
+    const num = ['①', '②', '③', '④', '⑤', '⑥'];
+    [...scored].reverse().forEach(r => {
+      const i = scored.indexOf(r);
+      log('계산', '후보 경로 ' + (num[i] || i + 1), 200,
+        r.src + ' · ' + fmtDist(r.len) + ' · 위험도 ' + r.risk + ' → ' + (r.verdict || ''));
+    });
+  }
 
   // 안전 경로가 없거나 위험도 차이가 2점 미만이면 하나만 보여줌 (FR-04)
-  if (!safe || safe.risk > fast.risk - 2) {
-    return { engine, engineError, routes: [{ ...fast, id: 'one', name: '추천 경로', single: true, detour: 0 }] };
+  if (reason) {
+    return { engine, engineError, reason, routes: [{ ...fast, id: 'one', name: '추천 경로', single: true, detour: 0 }] };
   }
   return {
     engine, engineError,

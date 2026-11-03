@@ -7,7 +7,14 @@ import KakaoMap from '../components/KakaoMap';
 import { riskLevel } from '../lib/router';
 import { timeInfo } from '../lib/risk';
 import { fmtDist, walkMin } from '../lib/geo';
-import { COLORS } from '../config';
+import { COLORS, DETOUR_LIMIT } from '../config';
+
+// 경로가 하나만 나올 때 이유별 안내 문구 (router.js findRoutes 의 reason)
+const SINGLE_MSG = {
+  noAlt: '다른 길 후보를 찾지 못해서 하나만 보여드려요.',
+  tooLong: '다른 길은 ' + Math.round(DETOUR_LIMIT * 100) + '% 넘게 돌아가서 하나만 보여드려요.',
+  smallDiff: '다른 길과 위험도 차이가 거의 없어서(2점 미만) 하나만 보여드려요.',
+};
 
 function RouteCard({ r, sel, base, onPick }) {
   const lv = riskLevel(r.risk);
@@ -118,7 +125,8 @@ export default function RouteCompareScreen() {
                 <p className="banner banner-amber" role="status"><Icon name="alert" size={20} />
                   <span className="grow"><b>경로 서버에 연결하지 못했어요</b><small>목적지까지 직선으로 표시했어요. ({t.engineError})</small></span></p>
               )}
-              {t.routes[0].single && t.engine === 'osrm' && <p className="note-box">후보 경로들의 위험도 차이가 거의 없어서 하나만 보여드려요.</p>}
+              {/* 경로가 하나뿐인 이유를 원인별로 안내 (자세한 후보 정보는 시연 도구 > API 기록) */}
+              {t.routes[0].single && t.engine === 'osrm' && <p className="note-box">{SINGLE_MSG[t.reason] || SINGLE_MSG.smallDiff}</p>}
               {t.routes.map(r => (
                 <RouteCard key={r.id} r={r} sel={r.id === t.selectedId} base={base} onPick={() => app.setTrip(x => ({ ...x, selectedId: r.id }))} />
               ))}

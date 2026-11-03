@@ -204,7 +204,7 @@ export default function App({ onReset }) {
       await loadFacilities();
       return findRoutes(start, dest, hour, pushLog);
     }, { delay: 50, note: dest.name + ' · ' + hour + '시 위험도 기준' })
-      .then(res => setTrip(t => ({ ...t, status: 'ready', routes: res.routes, engine: res.engine, engineError: res.engineError, selectedId: res.routes[0].id })))
+      .then(res => setTrip(t => ({ ...t, status: 'ready', routes: res.routes, engine: res.engine, engineError: res.engineError, reason: res.reason, selectedId: res.routes[0].id })))
       .catch(e => setTrip(t => ({ ...t, status: 'error', error: e })));
   };
   // 안내 방식 결정: 'gps'(실제 위치) 또는 'sim'(시연 자동 이동)
