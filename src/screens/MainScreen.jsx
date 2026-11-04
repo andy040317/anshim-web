@@ -1,11 +1,11 @@
 // 메인 지도 (UIR-US-01): 내 위치, 출발·도착 고르기, 안전시설 표시, SOS
+// 화면 구성 원칙: 지도 위 요소는 최소로. 시설 표시 설정은 아래 시트(DragSheet)에 넣고, 끌어 올려야 보이게 함
+// (출발지 주변 시설 통계는 넣지 않음: 안전장소는 가는 길 위에서만 의미가 있음)
 import { useEffect, useState } from 'react';
 import { useApp } from '../AppContext';
-import { TabBar, TimePill } from '../components/ui';
+import { TabBar, TimePill, DragSheet } from '../components/ui';
 import Icon from '../components/Icon';
 import KakaoMap from '../components/KakaoMap';
-import { nearby, nearest } from '../lib/facilities';
-import { fmtDist } from '../lib/geo';
 import { DAEGU_CENTER } from '../config';
 
 // 지도 레이어 버튼 (유흥주점은 지도에 표시하지 않음: 위험도 계산과 경로 카드 근거에만 사용)
@@ -27,17 +27,9 @@ export default function MainScreen() {
     else setView({ type: 'center', p: DAEGU_CENTER, level: 8, key: 'daegu' });
   }, [start && start.lat, start && start.lng, dest && dest.lat, dest && dest.lng]);
 
-  // 출발 지점 반경 300m 안의 시설
-  let near = null;
-  if (start && app.facVersion) {
-    const cctv = nearby('cctv', start, 300);
-    near = {
-      spots: cctv.length, cameras: cctv.reduce((s, f) => s + f.n, 0),
-      lamps: nearby('lamp', start, 300).reduce((s, f) => s + f.n, 0),
-      store: nearest('store', start, 3000),
-      police: nearest('police', start, 8000),
-    };
-  }
+  // 지금 지도에 켜 둔 시설 종류 수 (시트 윗줄에 표시)
+  const layerKeys = Object.keys(LAYER_LABEL);
+  const layersOn = layerKeys.filter(k => app.layers[k]).length;
 
   const goSearch = mode => { app.setSearchMode(mode); app.go('search'); };
   const startText = app.startPick ? app.startPick.name
@@ -80,43 +72,43 @@ export default function MainScreen() {
               <p className="sc-hint"><Icon name="pin" size={14} />지도를 눌러도 출발지·도착지를 고를 수 있어요.</p>
             )}
           </div>
-          <div className="layer-row" role="group" aria-label="지도에 표시할 시설">
-            {Object.keys(LAYER_LABEL).map(k => (
+        </div>
+
+        {/* 아래 시트: 평소엔 윗줄만 보이고, 끌어 올리거나 윗줄을 누르면 시설 표시 버튼이 나옴 */}
+        <DragSheet label="지도 표시 설정"
+          above={
+            // 시트 위에 붙어서 시트와 같이 움직이는 버튼 줄
+            <div className="fab-row">
+              <div className="fab-col">
+                {/* 일반/위성 전환 버튼: 버튼 글자는 '누르면 바뀔 지도'를 보여줌 */}
+                <button className="fab fab-type" aria-label={satellite ? '일반 지도로 보기' : '위성 지도로 보기'} aria-pressed={satellite ? 'true' : 'false'}
+                  onClick={() => app.setMapType(satellite ? 'roadmap' : 'hybrid')}>
+                  <Icon name={satellite ? 'map' : 'layers'} size={18} /><span>{satellite ? '일반' : '위성'}</span>
+                </button>
+                <button className="fab" aria-label="내 위치로 이동" onClick={myCenter}><Icon name="locate" size={22} /></button>
+              </div>
+              <button className="sos-btn" aria-label="SOS 긴급 도움 요청" onClick={app.startSos}>SOS</button>
+            </div>
+          }
+          peek={
+            // 접혀 있을 때 보이는 한 줄
+            <div className="ms-peek">
+              <div>
+                <h2>안전시설 표시</h2>
+                <small>{app.facVersion ? `${layerKeys.length}종 중 ${layersOn}종 표시 · 올려서 고르기` : '안전시설 데이터를 불러오는 중이에요…'}</small>
+              </div>
+              <TimePill night={app.demo.night} />
+            </div>
+          }>
+          {/* 펼쳤을 때 보이는 내용: 시설 종류별 켜기/끄기 */}
+          <div className="layer-wrap" role="group" aria-label="지도에 표시할 시설">
+            {layerKeys.map(k => (
               <button key={k} className="lchip" aria-pressed={app.layers[k] ? 'true' : 'false'} onClick={() => app.setLayers(l => ({ ...l, [k]: !l[k] }))}>
                 <span className={'ldot mk-bg-' + k} />{LAYER_LABEL[k]}
               </button>
             ))}
           </div>
-        </div>
-
-        <div className="map-bottom">
-          <div className="fab-row">
-            <div className="fab-col">
-              {/* 일반/위성 전환 버튼: 버튼 글자는 '누르면 바뀔 지도'를 보여줌 */}
-              <button className="fab fab-type" aria-label={satellite ? '일반 지도로 보기' : '위성 지도로 보기'} aria-pressed={satellite ? 'true' : 'false'}
-                onClick={() => app.setMapType(satellite ? 'roadmap' : 'hybrid')}>
-                <Icon name={satellite ? 'map' : 'layers'} size={18} /><span>{satellite ? '일반' : '위성'}</span>
-              </button>
-              <button className="fab" aria-label="내 위치로 이동" onClick={myCenter}><Icon name="locate" size={22} /></button>
-            </div>
-            <button className="sos-btn" aria-label="SOS 긴급 도움 요청" onClick={app.startSos}>SOS</button>
-          </div>
-          <section className="nearby" aria-label="주변 안전시설">
-            <div className="nearby-head">
-              <h2>{start ? '출발 지점 주변 300m' : '주변 안전시설'}</h2>
-              <TimePill night={app.demo.night} />
-            </div>
-            {!app.facVersion ? <p className="small muted">안전시설 데이터를 불러오는 중이에요…</p>
-              : near ? (
-                <div className="stat-grid four">
-                  <div className="stat"><span><span className="ldot mk-bg-cctv" />CCTV</span><b>{near.spots}곳</b><small>{near.cameras}대</small></div>
-                  <div className="stat"><span><span className="ldot mk-bg-lamp" />보안등</span><b>{near.lamps}개</b><small>300m 안</small></div>
-                  <div className="stat"><span><span className="ldot mk-bg-store" />편의점</span><b>{near.store ? fmtDist(near.store.d) : '-'}</b><small>가장 가까운</small></div>
-                  <div className="stat"><span><span className="ldot mk-bg-police" />지구대</span><b>{near.police ? fmtDist(near.police.d) : '-'}</b><small>{near.police ? near.police.name : '정보 없음'}</small></div>
-                </div>
-              ) : <p className="small muted">출발지를 정하면 주변 시설 개수를 보여드려요.</p>}
-          </section>
-        </div>
+        </DragSheet>
       </div>
       <TabBar current="main" />
     </div>
