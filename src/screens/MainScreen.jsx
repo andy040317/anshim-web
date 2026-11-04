@@ -22,7 +22,7 @@ export default function MainScreen() {
   // 출발·도착이 바뀌면 지도를 그에 맞춰 옮김
   useEffect(() => {
     const pts = [start, dest].filter(Boolean);
-    if (pts.length === 2) setView({ type: 'fit', pts, pad: { top: 300, bottom: 230, left: 50, right: 50 }, key: 'fit' + pts.map(p => p.lat + ',' + p.lng).join('|') });
+    if (pts.length === 2) setView({ type: 'fit', pts, pad: { top: 150, bottom: 230, left: 50, right: 50 } /* top: 위 검색창 높이만큼 비움 */, key: 'fit' + pts.map(p => p.lat + ',' + p.lng).join('|') });
     else if (pts.length === 1) setView({ type: 'center', p: pts[0], level: 4, key: 'c' + pts[0].lat + ',' + pts[0].lng });
     else setView({ type: 'center', p: DAEGU_CENTER, level: 8, key: 'daegu' });
   }, [start && start.lat, start && start.lng, dest && dest.lat, dest && dest.lng]);
@@ -30,6 +30,10 @@ export default function MainScreen() {
   // 지금 지도에 켜 둔 시설 종류 수 (시트 윗줄에 표시)
   const layerKeys = Object.keys(LAYER_LABEL);
   const layersOn = layerKeys.filter(k => app.layers[k]).length;
+
+  // 검색창 모양: 출발이 '현재 위치'이고 목적지를 아직 안 골랐으면 한 줄, 아니면 출발·도착 두 줄
+  // (위치 동의를 안 했으면 현재 위치가 없어서 출발 줄이 필요하므로 두 줄)
+  const searchOneLine = !dest && !app.startPick && !denied;
 
   const goSearch = mode => { app.setSearchMode(mode); app.go('search'); };
   const startText = app.startPick ? app.startPick.name
@@ -49,29 +53,46 @@ export default function MainScreen() {
           mapType={app.mapType} />
 
         <div className="float-top">
-          <div className="search-card">
-            <div className="sc-line">
-              <button className="sc-row" onClick={() => goSearch('start')}>
-                <span className="sc-dot" /><span className="sc-label">출발</span>
-                <span className={'grow' + (app.startPick || !denied ? '' : ' sc-placeholder')}>{startText}</span>
-                {app.demo.gpsLost && !app.startPick && !denied && <span className="chip chip-amber">GPS 약함</span>}
+          {searchOneLine ? (
+            // 한 줄 검색창: 출발은 현재 위치라서 목적지만 고르면 됨. 오른쪽 칩을 누르면 출발지를 바꿀 수 있음
+            <div className="search-pill">
+              <button className="sp-main" onClick={() => goSearch('dest')}>
+                <Icon name="search" size={20} />
+                <span className="grow">목적지를 검색하세요</span>
               </button>
-              {app.startPick && !denied && <button className="icon-btn" aria-label="출발지를 현재 위치로 되돌리기" onClick={() => app.setStartPick(null)}><Icon name="close" size={18} /></button>}
-            </div>
-            <div className="sc-line">
-              <button className="sc-row" onClick={() => goSearch('dest')}>
-                <span className="sc-dot dest" /><span className="sc-label">도착</span>
-                <span className={'grow' + (dest ? '' : ' sc-placeholder')}>{dest ? dest.name : '목적지를 검색하세요'}</span>
-                {!dest && <Icon name="search" size={18} />}
+              {app.demo.gpsLost && <span className="chip chip-amber">GPS 약함</span>}
+              <button className="sp-start" aria-label="출발지 바꾸기 (지금은 현재 위치)" onClick={() => goSearch('start')}>
+                <span className="sc-dot" />현재 위치
               </button>
-              {dest && <button className="icon-btn" aria-label="목적지 지우기" onClick={() => app.setDestPick(null)}><Icon name="close" size={18} /></button>}
             </div>
-            {start && dest ? (
-              <button className="btn btn-primary" style={{ margin: '8px 0' }} onClick={() => app.requestRoutes(dest)}>경로 비교하기</button>
-            ) : (
-              <p className="sc-hint"><Icon name="pin" size={14} />지도를 눌러도 출발지·도착지를 고를 수 있어요.</p>
-            )}
-          </div>
+          ) : (
+            // 출발·도착 두 줄 + (둘 다 정해지면) 오른쪽 경로 버튼
+            <div className="search-row">
+              <div className="search-card">
+                <div className="sc-line">
+                  <button className="sc-row" onClick={() => goSearch('start')}>
+                    <span className="sc-dot" /><span className="sc-label">출발</span>
+                    <span className={'grow' + (app.startPick || !denied ? '' : ' sc-placeholder')}>{startText}</span>
+                    {app.demo.gpsLost && !app.startPick && !denied && <span className="chip chip-amber">GPS 약함</span>}
+                  </button>
+                  {app.startPick && !denied && <button className="icon-btn" aria-label="출발지를 현재 위치로 되돌리기" onClick={() => app.setStartPick(null)}><Icon name="close" size={18} /></button>}
+                </div>
+                <div className="sc-line">
+                  <button className="sc-row" onClick={() => goSearch('dest')}>
+                    <span className="sc-dot dest" /><span className="sc-label">도착</span>
+                    <span className={'grow' + (dest ? '' : ' sc-placeholder')}>{dest ? dest.name : '목적지를 검색하세요'}</span>
+                    {!dest && <Icon name="search" size={18} />}
+                  </button>
+                  {dest && <button className="icon-btn" aria-label="목적지 지우기" onClick={() => app.setDestPick(null)}><Icon name="close" size={18} /></button>}
+                </div>
+              </div>
+              {start && dest && (
+                <button className="route-go" aria-label="경로 비교하기" onClick={() => app.requestRoutes(dest)}>
+                  <Icon name="right" size={22} /><span>경로</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 아래 시트: 평소엔 윗줄만 보이고, 끌어 올리거나 윗줄을 누르면 시설 표시 버튼이 나옴 */}
