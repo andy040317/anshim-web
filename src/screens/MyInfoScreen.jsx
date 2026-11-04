@@ -44,7 +44,8 @@ export default function MyInfoScreen() {
             <h2 className="sec-label">서비스 정보</h2>
             <div className="set-row"><div className="grow"><b>서비스 지역</b><small>대구광역시 전체 (군위군 포함)</small></div></div>
             <div className="set-row"><div className="grow"><b>위험도 안내</b><small>경로끼리 비교하기 위한 상대 지표예요. 실제 안전을 보장하지 않아요.</small></div></div>
-            <div className="set-row"><div className="grow"><b>지금 반영된 데이터</b><small>대구 CCTV·안전비상벨 위치, 119안전센터 주소 (유동인구·범죄주의구간은 연동 예정)</small></div></div>
+            {/* 지금 반영된 데이터: public/data/risk/ (구간 위험도) + public/data/*.json (안전시설 위치) 기준 */}
+            <div className="set-row"><div className="grow"><b>지금 반영된 데이터</b><small>위험도: 범죄주의구간·시간대별 유동인구·CCTV·안전비상벨·보안등·유흥주점·길 종류 · 안전시설: 지구대·파출소·119안전센터·편의점 (대구 기준)</small></div></div>
           </section>
           <button className="btn btn-ghost" onClick={app.logout}><Icon name="logout" size={18} />로그아웃</button>
         </div>
