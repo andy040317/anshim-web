@@ -91,7 +91,7 @@ export default function GuardianViewScreen() {
               <div className="stat"><span>마지막 수신</span><b>{fmtClock(s.last.at, true)}</b><small>{lagSec}초 전</small></div>
               <div className="stat">
                 <span>{remain !== null ? '도착 예정' : '링크 만료'}</span>
-                <b>{remain !== null ? fmtClock(now + (remain / WALK_MPS) * 1000) : fmtClock(s.expiresAt)}</b>
+                <b>{remain !== null ? fmtClock(now + (remain / WALK_MPS) * 1000) : s.expiresAt ? fmtClock(s.expiresAt) : '없음'}</b>
                 <small>{remain !== null ? '남은 거리 ' + fmtDist(remain) : '그 전에 끝날 수 있어요'}</small>
               </div>
             </div>

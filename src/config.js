@@ -4,6 +4,11 @@
 // 카카오 JavaScript 키 (.env 파일의 VITE_KAKAO_JS_KEY)
 export const KAKAO_KEY = import.meta.env.VITE_KAKAO_JS_KEY;
 
+// 백엔드(FastAPI) 서버 주소 (.env 파일의 VITE_API_URL, 예: http://localhost:8000)
+// 비워 두면 지금처럼 브라우저 안의 가짜 API로 동작 → 서버 없이도 시연 가능
+export const API_URL = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+export const USE_SERVER = API_URL !== '';
+
 // 경로 엔진(OSRM) 주소
 // 지금은 공개 도보 서버(무료·시연용, 1초에 1번 이하 호출 규칙).
 // 팀 OSRM 서버가 준비되면 이 한 줄만 그 주소로 바꾸면 돼요.

@@ -2,6 +2,7 @@
 
 유동인구·범죄안전데이터 기반 도보 안심귀갓길 서비스의 **화면 구성과 동작 흐름**을 보여주는 React 프로토타입입니다.
 카카오맵 위에서 대구 전체를 대상으로 동작하고, 로그인·서버 부분은 가짜 API로 흉내 냅니다.
+`backend/` 서버를 켜고 `.env`에 `VITE_API_URL`을 넣으면 로그인·보호자·위치공유·SOS가 진짜 서버로 동작해요.
 
 ## 1. 처음 실행하기
 
@@ -37,6 +38,7 @@
 
 | 위치 | 내용 |
 |---|---|
+| `backend/` | 백엔드 서버 (FastAPI + PostgreSQL). 켜는 법은 `backend/README.md` · `.env`에 `VITE_API_URL`을 넣으면 프론트가 이 서버를 씀 |
 | `src/App.jsx` | 앱 전체 상태와 동작 (로그인, 위치, 경로, 안내, 공유, SOS) |
 | `src/config.js` | 설정값 (경로 서버 주소, SOS 취소 시간, 링크 만료 등 임시값) |
 | `src/screens/` | 화면 하나당 파일 하나 (LoginScreen, MainScreen, RouteCompareScreen …) |
