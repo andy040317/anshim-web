@@ -192,7 +192,17 @@ textarea.input{height:auto;padding:12px 14px;line-height:1.6;resize:vertical}
 .float-top{position:absolute;left:0;right:0;top:0;z-index:5;display:flex;flex-direction:column;gap:10px;padding:12px var(--gr) 0 var(--gl);pointer-events:none}
 .float-top>*{pointer-events:auto}
 .search-card{display:flex;flex-direction:column;padding:4px 12px;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
-.sc-row{display:flex;align-items:center;gap:12px;min-height:46px;width:100%;padding:0;background:none;border:0;text-align:left;color:var(--text);font-size:15px}
+/* 한 줄 검색창 (출발 = 현재 위치, 목적지만 고를 때) */
+.search-pill{display:flex;align-items:center;gap:6px;height:48px;padding:0 6px 0 0;background:var(--surface);border:1px solid var(--line);border-radius:24px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.sp-main{flex:1;min-width:0;height:100%;display:flex;align-items:center;gap:10px;padding:0 0 0 16px;background:none;border:0;border-radius:24px 0 0 24px;color:var(--text-2);font-size:15px;text-align:left}
+.sp-main .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-3)}
+.sp-start{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:18px;background:var(--surface-2);border:1px solid var(--line);color:var(--text-2);font-size:13px;font-weight:500;white-space:nowrap}
+/* 출발·도착 두 줄 카드 + 오른쪽 경로 버튼 */
+.search-row{display:flex;align-items:stretch;gap:8px}
+.search-row .search-card{flex:1;min-width:0}
+.route-go{flex-shrink:0;width:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:0;border-radius:16px;background:var(--accent);color:var(--accent-ink);font-size:12px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.route-go:hover{background:var(--accent-hover)}
+.sc-row{display:flex;align-items:center;gap:12px;min-height:44px;width:100%;padding:0;background:none;border:0;text-align:left;color:var(--text);font-size:15px}
 .sc-dot{width:10px;height:10px;border-radius:5px;background:var(--accent);flex-shrink:0}
 .sc-dot.dest{border-radius:2px;background:var(--amber)}
 .sc-label{width:28px;flex-shrink:0;font-size:12px;color:var(--text-3)}
@@ -452,7 +462,6 @@ body{margin:0}
 .sc-line{display:flex;align-items:center;gap:4px}
 .sc-line+.sc-line{border-top:1px solid var(--line)}
 .sc-line .sc-row{flex:1;min-width:0}
-.sc-hint{display:flex;align-items:center;gap:6px;padding:10px 0;border-top:1px solid var(--line);font-size:12px;color:var(--text-3)}
 .stat small{font-size:11.5px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* 지도에서 고르기 시트 */
