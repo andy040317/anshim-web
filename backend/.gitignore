@@ -1,0 +1,6 @@
+# 가상환경 폴더 (각자 PC에서 만듦)
+.venv
+# 개발용 SQLite DB 파일
+*.db
+# 테스트 실행 때 생기는 임시 폴더
+.pytest_cache

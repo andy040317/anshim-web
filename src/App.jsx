@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AppCtx } from './AppContext';
 import {
-  SOS_CANCEL_SEC, SHARE_EXPIRE_MIN, ARRIVE_M, SIM_STEP_M, OFF_ROUTE_M, DEMO_LOCATION, NIGHT_HOURS,
+  SOS_CANCEL_SEC, SHARE_EXPIRE_MIN, ARRIVE_M, SIM_STEP_M, OFF_ROUTE_M, DEMO_LOCATION, NIGHT_HOURS, USE_SERVER,
 } from './config';
 import { distM, pathLength, pointAlong, offsetM, inDaegu, fmtClock, makeToken, projectOnPath } from './lib/geo';
+import { request } from './lib/api';
 import { loadKakaoMap } from './lib/loadKakaoMap';
 import { loadFacilities, geocodeFire } from './lib/facilities';
 import { findRoutes, rerouteFrom } from './lib/router';
@@ -55,7 +56,8 @@ export default function App({ onReset }) {
   //   'gps'  = 항상 실제 위치 (폰으로 걸으며 테스트)   'sim' = 항상 자동 이동 (발표 시연)
   const [demo, setDemo] = useState({ night: true, commError: false, routeFail: false, gpsLost: false, gpsLostAt: null, speed: 1, shareDelay: false, idStrip: false, guideMode: 'auto' });
   const [gpsInfo, setGpsInfo] = useState({ lastFixAt: null, acc: null, error: '' }); // 실시간 위치 수신 상태
-  const [guardians, setGuardians] = useState([{ id: 1, name: '친구', phone: '010-1234-5678' }]);
+  // 보호자 목록: 서버 연결 때는 로그인 후 서버에서 받아옴, 가짜 API 때는 시연용 1명
+  const [guardians, setGuardians] = useState(USE_SERVER ? [] : [{ id: 1, name: '친구', phone: '010-1234-5678' }]);
   const [myPos, setMyPos] = useState(null);           // 내 위치 { lat, lng, source: 'gps' | 'demo' }
   const [startPick, setStartPick] = useState(null);   // 직접 고른 출발지 (없으면 내 위치)
   const [destPick, setDestPick] = useState(null);     // 고른 목적지
@@ -112,6 +114,19 @@ export default function App({ onReset }) {
   }), [pushLog]);
   const fail = (status, code, message) => { throw { status, code, message }; };
 
+  // 진짜 백엔드 서버 호출 (config.js 의 USE_SERVER 가 true 일 때만 사용)
+  // 가짜 API 와 똑같이 API 기록을 남기고, 시연 도구의 "통신 오류"도 그대로 적용됨
+  const tokenRef = useRef(null); // 로그인 토큰 (새로고침하면 사라짐 → 다시 로그인)
+  const srv = useCallback((method, path, body, opts = {}) => {
+    if (demoRef.current.commError) {
+      pushLog(method, path, '연결 실패', opts.note);
+      return Promise.reject({ code: 'NETWORK', message: '서버에 연결하지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.' });
+    }
+    return request(method, path, { body, token: tokenRef.current })
+      .then(r => { pushLog(method, path, opts.status || 200, opts.note); return r; })
+      .catch(e => { pushLog(method, path, e.status || 'ERR', e.message); throw e; });
+  }, [pushLog]);
+
   // ── 시작할 때: 시설 데이터 + 카카오맵 불러오기 ──
   useEffect(() => {
     loadFacilities()
@@ -157,24 +172,54 @@ export default function App({ onReset }) {
   posRef.current = currentPos;
   const routeStart = () => startPick || (consent !== false ? myPos : null);
 
+  // 서버 시각(실제 시각) ↔ 앱 시계(시연 시각, 예: 22:40부터 흐름) 바꾸기
+  const toAppTime = ms => (ms == null ? ms : ms + (clock() - Date.now()));
+  const toRealTime = ms => (ms == null ? ms : ms - (clock() - Date.now()));
+  // 서버가 준 공유 정보 → 화면에서 쓰는 모양
+  const fromServerShare = s => ({
+    id: s.id, token: s.token, type: s.type, guardianIds: s.guardianIds, status: s.status, reason: s.reason,
+    startedAt: toAppTime(s.startedAt), expiresAt: toAppTime(s.expiresAt), // 긴급 공유는 expiresAt 이 없음(null)
+    last: s.last ? { pos: { lat: s.last.lat, lng: s.last.lng }, at: toAppTime(s.last.at) } : { pos: posRef.current, at: clock() },
+  });
+
   /* ── 인증 ── */
-  const login = (id, pw) => call('POST', '/auth/login', () => {
-    const u = users.find(x => x.id === id && x.pw === pw);
-    if (!u) fail(401, 'AUTH_FAILED', '아이디 또는 비밀번호가 맞지 않아요.');
-    return u;
-  }).then(u => { setMe(u); setScreen(consent === null ? 'consent' : 'main'); showToast(u.name + '님, 반가워요.'); });
-  const checkId = id => call('GET', '/auth/check-id?id=' + id, () => ({ available: !users.some(u => u.id === id) && id !== 'admin' }));
-  const signup = data => call('POST', '/auth/signup', () => {
-    if (users.some(u => u.id === data.id)) fail(409, 'DUPLICATE_ID', '이미 사용 중인 아이디예요.');
-    setUsers(us => [...us, data]);
-    return true;
-  }, { status: 201 }).then(() => { setPrefillId(data.id); setScreen('login'); showToast('가입했어요. 로그인해 주세요.'); });
-  const decideConsent = ok => call('PUT', '/users/me/consents', () => true, { note: '위치 동의: ' + (ok ? '동의' : '거부') })
-    .then(() => { setConsent(ok); setScreen('main'); if (!ok) showToast('지도를 누르거나 검색해서 출발지를 정해 주세요.'); })
-    .catch(e => { showToast(e.message); throw e; });
+  const login = (id, pw) => {
+    const done = (u, savedConsent) => { setMe(u); setScreen(savedConsent === null ? 'consent' : 'main'); showToast(u.name + '님, 반가워요.'); };
+    if (USE_SERVER) {
+      return srv('POST', '/auth/login', { id, pw }).then(async r => {
+        tokenRef.current = r.token;
+        setGuardians(await srv('GET', '/guardians', undefined, { note: '내 보호자 목록' }));
+        setConsent(r.user.locationConsent); // 서버에 저장된 위치 동의 (처음이면 null → 동의 화면)
+        done(r.user, r.user.locationConsent);
+      });
+    }
+    return call('POST', '/auth/login', () => {
+      const u = users.find(x => x.id === id && x.pw === pw);
+      if (!u) fail(401, 'AUTH_FAILED', '아이디 또는 비밀번호가 맞지 않아요.');
+      return u;
+    }).then(u => done(u, consent));
+  };
+  const checkId = id => (USE_SERVER
+    ? srv('GET', '/auth/check-id?id=' + encodeURIComponent(id))
+    : call('GET', '/auth/check-id?id=' + id, () => ({ available: !users.some(u => u.id === id) && id !== 'admin' })));
+  const signup = data => (USE_SERVER
+    ? srv('POST', '/auth/signup', data, { status: 201 })
+    : call('POST', '/auth/signup', () => {
+      if (users.some(u => u.id === data.id)) fail(409, 'DUPLICATE_ID', '이미 사용 중인 아이디예요.');
+      setUsers(us => [...us, data]);
+      return true;
+    }, { status: 201 })).then(() => { setPrefillId(data.id); setScreen('login'); showToast('가입했어요. 로그인해 주세요.'); });
+  const decideConsent = ok => {
+    const note = '위치 동의: ' + (ok ? '동의' : '거부');
+    return (USE_SERVER ? srv('PUT', '/users/me/consents', { location: ok }, { note }) : call('PUT', '/users/me/consents', () => true, { note }))
+      .then(() => { setConsent(ok); setScreen('main'); if (!ok) showToast('지도를 누르거나 검색해서 출발지를 정해 주세요.'); })
+      .catch(e => { showToast(e.message); throw e; });
+  };
   const logout = () => {
-    call('POST', '/auth/logout', () => true).catch(() => {});
-    if (share && share.status === 'active') setShare(s => ({ ...s, status: 'ended', reason: 'user' }));
+    if (share && share.status === 'active') endShare('user'); // 로그아웃하면 진행 중인 공유도 끝냄
+    (USE_SERVER ? srv('POST', '/auth/logout') : call('POST', '/auth/logout', () => true)).catch(() => {});
+    tokenRef.current = null;
+    if (USE_SERVER) setGuardians([]);
     setMe(null); setGuide(null); setTrip(null); setSos(null); setSheet(null); setScreen('login');
   };
 
@@ -298,27 +343,66 @@ export default function App({ onReset }) {
   }, [arrived]);
 
   /* ── 보호자·위치공유 ── */
-  const addGuardian = g => call('POST', '/guardians', () => { const n = { ...g, id: Date.now() }; setGuardians(l => [...l, n]); return n; }, { status: 201 });
-  const updateGuardian = g => call('PUT', '/guardians/' + g.id, () => { setGuardians(l => l.map(x => (x.id === g.id ? g : x))); return g; });
-  const removeGuardian = id => call('DELETE', '/guardians/' + id, () => { setGuardians(l => l.filter(x => x.id !== id)); return true; });
-  const createShare = (ids, type) => call('POST', '/shares', () => {
-    const t = clock();
-    return { id: makeToken(6), token: makeToken(22), type, guardianIds: ids, startedAt: t, expiresAt: t + SHARE_EXPIRE_MIN * 60000, status: 'active', last: { pos: posRef.current, at: t } };
-  }, { status: 201, note: type === 'sos' ? '긴급(SOS) 공유' : '일반 공유' }).then(s => { setShare(s); return s; });
+  const addGuardian = g => (USE_SERVER
+    ? srv('POST', '/guardians', { name: g.name, phone: g.phone }, { status: 201 }).then(n => { setGuardians(l => [...l, n]); return n; })
+    : call('POST', '/guardians', () => { const n = { ...g, id: Date.now() }; setGuardians(l => [...l, n]); return n; }, { status: 201 }));
+  const updateGuardian = g => (USE_SERVER
+    ? srv('PUT', '/guardians/' + g.id, { name: g.name, phone: g.phone }).then(n => { setGuardians(l => l.map(x => (x.id === n.id ? n : x))); return n; })
+    : call('PUT', '/guardians/' + g.id, () => { setGuardians(l => l.map(x => (x.id === g.id ? g : x))); return g; }));
+  const removeGuardian = id => (USE_SERVER
+    ? srv('DELETE', '/guardians/' + id).then(() => { setGuardians(l => l.filter(x => x.id !== id)); return true; })
+    : call('DELETE', '/guardians/' + id, () => { setGuardians(l => l.filter(x => x.id !== id)); return true; }));
+  // 공유 시작 때 서버에 보낼 내용: 받는 보호자, 지금 위치, 목적지·경로(있으면) → 보호자 화면에 표시
+  const shareBody = (ids, type) => {
+    const p = posRef.current;
+    const sel = trip && trip.routes ? trip.routes.find(x => x.id === trip.selectedId) : null;
+    const pts = guide ? guide.route.pts : sel ? sel.pts : null;
+    const dest = guide ? guide.dest : trip ? trip.dest : null;
+    const step = pts ? Math.ceil(pts.length / 2000) : 1; // 점이 아주 많으면 솎아서 보냄
+    return {
+      type, guardianIds: ids,
+      pos: p ? { lat: p.lat, lng: p.lng } : null,
+      dest: dest ? { name: (dest.name || '목적지').slice(0, 100), lat: dest.lat, lng: dest.lng } : null,
+      route: pts ? pts.filter((_, i) => i % step === 0 || i === pts.length - 1).map(q => [q.lat, q.lng]) : null,
+    };
+  };
+  const createShare = (ids, type) => {
+    const note = type === 'sos' ? '긴급(SOS) 공유' : '일반 공유';
+    const req = USE_SERVER
+      ? srv('POST', '/shares', shareBody(ids, type), { status: 201, note }).then(fromServerShare)
+      : call('POST', '/shares', () => {
+        const t = clock();
+        return { id: makeToken(6), token: makeToken(22), type, guardianIds: ids, startedAt: t, expiresAt: t + SHARE_EXPIRE_MIN * 60000, status: 'active', last: { pos: posRef.current, at: t } };
+      }, { status: 201, note });
+    return req.then(s => { setShare(s); return s; });
+  };
   const endShare = reason => {
     if (!share) return;
-    call('DELETE', '/shares/' + share.id, () => true, { note: { arrived: '도착 → 자동 종료', user: '사용자가 종료', sos: 'SOS 상황 종료' }[reason] || '' }).catch(() => {});
+    const note = { arrived: '도착 → 자동 종료', user: '사용자가 종료', sos: 'SOS 상황 종료' }[reason] || '';
+    (USE_SERVER
+      ? srv('DELETE', '/shares/' + share.id + '?reason=' + (['arrived', 'sos'].includes(reason) ? reason : 'user'), undefined, { note })
+      : call('DELETE', '/shares/' + share.id, () => true, { note })).catch(() => {});
     setShare(s => s && ({ ...s, status: 'ended', reason }));
   };
   const expireShare = () => { setShare(s => s && ({ ...s, status: 'expired', reason: 'expired' })); showToast('공유 링크가 만료되었어요.'); };
   // 공유 중에는 5초마다 위치 전송 (시연 도구의 "수신 지연"을 켜면 멈춤)
   const shareActive = !!share && share.status === 'active';
+  const shareRef = useRef(null);
+  shareRef.current = share; // 5초 타이머 안에서 '지금' 공유 정보를 보기 위해
   useEffect(() => {
     if (!shareActive) return;
     const t = setInterval(() => {
       if (demoRef.current.shareDelay || demoRef.current.gpsLost) return;
       setShare(s => (s && s.status === 'active' ? { ...s, last: { pos: posRef.current, at: clock() } } : s));
-      pushLog('POST', '/shares/{id}/locations', 200, '위치 전송 (5초 주기)');
+      const s = shareRef.current, p = posRef.current;
+      if (USE_SERVER && s && p) {
+        srv('POST', '/shares/' + s.id + '/locations', { lat: p.lat, lng: p.lng }, { note: '위치 전송 (5초 주기)' }).catch(e => {
+          // 서버에서 이미 끝난(만료된) 공유면 화면도 끝난 상태로
+          if (e.status === 410) setShare(x => x && ({ ...x, status: e.data && e.data.status === 'expired' ? 'expired' : 'ended', reason: e.data ? e.data.reason : 'user' }));
+        });
+      } else if (!USE_SERVER) {
+        pushLog('POST', '/shares/{id}/locations', 200, '위치 전송 (5초 주기)');
+      }
     }, 5000);
     return () => clearInterval(t);
   }, [shareActive]);
@@ -329,7 +413,21 @@ export default function App({ onReset }) {
   const activateSos = () => {
     const stale = demoRef.current.gpsLost;
     const at = stale ? demoRef.current.gpsLostAt || clock() : clock();
-    setSos(s => ({ ...s, phase: 'active', id: makeToken(6), pos: posRef.current, at, stale, alarm: true, shareFailed: false }));
+    const pos = posRef.current;
+    setSos(s => ({ ...s, phase: 'active', id: makeToken(6), pos, at, stale, alarm: true, shareFailed: false }));
+    if (USE_SERVER) {
+      // 서버가 SOS 기록 저장 + 보호자 긴급 공유까지 한 번에 처리 (일반 공유 중이면 그 링크를 긴급 공유로 바꿈)
+      const body = { pos: pos ? { lat: pos.lat, lng: pos.lng } : null, locatedAt: pos ? Math.round(toRealTime(at)) : null, stale };
+      srv('POST', '/sos', body, { status: 201, note: 'SOS 시작 · 보호자 긴급 공유' })
+        .then(r => {
+          setSos(s => s && ({ ...s, id: r.id })); // 상황 종료 때 쓸 서버 기록 번호
+          if (!r.share) return;                   // 보호자가 없으면 공유 없이 진행
+          if (r.share.token) setShare(fromServerShare(r.share));
+          else setShare(s => s && ({ ...s, type: 'sos', expiresAt: null, guardianIds: r.share.guardianIds }));
+        })
+        .catch(() => setSos(s => s && ({ ...s, shareFailed: guardians.length > 0 })));
+      return;
+    }
     call('POST', '/sos', () => true, { status: 201, note: 'SOS 시작' }).catch(() => {});
     if (guardians.length) {
       if (share && share.status === 'active') setShare(s => ({ ...s, type: 'sos' }));
@@ -343,7 +441,9 @@ export default function App({ onReset }) {
     return () => clearTimeout(t);
   }, [sos && sos.phase, sos && sos.left]);
   const endSos = () => {
-    call('POST', '/sos/' + (sos && sos.id) + '/end', () => true, { note: '상황 종료' }).catch(() => {});
+    (USE_SERVER
+      ? srv('POST', '/sos/' + (sos && sos.id) + '/end', undefined, { note: '상황 종료' })
+      : call('POST', '/sos/' + (sos && sos.id) + '/end', () => true, { note: '상황 종료' })).catch(() => {});
     if (share && share.status === 'active' && share.type === 'sos') endShare('sos');
     setSos(null);
     showToast('상황을 종료했어요. 긴급 공유도 끝냈어요.');

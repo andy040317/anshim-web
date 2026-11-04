@@ -4,6 +4,7 @@
 // - API 기록: 실제로 호출된 순서
 import { useApp } from '../AppContext';
 import { META, GROUPS } from '../lib/meta';
+import { USE_SERVER } from '../config';
 import { Switch } from './ui';
 import Icon from './Icon';
 
@@ -153,7 +154,8 @@ function ApiLog() {
   return (
     <section className="psec">
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <span className="sec-label">최근 호출 (최신이 위)</span>
+        {/* 서버 주소(VITE_API_URL)가 있으면 진짜 서버, 없으면 브라우저 안의 가짜 API */}
+        <span className="sec-label">최근 호출 (최신이 위) · {USE_SERVER ? '진짜 서버' : '가짜 API'}</span>
         <button className="btn btn-ghost btn-sm" onClick={() => app.setLogs([])}>기록 지우기</button>
       </div>
       <div>

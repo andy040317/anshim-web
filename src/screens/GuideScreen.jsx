@@ -128,7 +128,7 @@ export default function GuideScreen() {
             {s ? (
               <div className="share-row">
                 <span className={'share-ic' + (s.type === 'sos' ? ' sos' : '')}><Icon name="users" size={18} /></span>
-                <div className="grow"><b>{names || '보호자'}에게 {s.type === 'sos' ? '긴급 ' : ''}위치 공유 중</b><small>도착하면 자동 종료 · 링크 만료 {fmtClock(s.expiresAt)}</small></div>
+                <div className="grow"><b>{names || '보호자'}에게 {s.type === 'sos' ? '긴급 ' : ''}위치 공유 중</b><small>{s.expiresAt ? '도착하면 자동 종료 · 링크 만료 ' + fmtClock(s.expiresAt) : '상황을 종료할 때까지 공유'}</small></div>
                 <button className="btn btn-ghost btn-sm" onClick={() => app.endShare('user')}>공유 종료</button>
               </div>
             ) : (

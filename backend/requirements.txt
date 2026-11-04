@@ -1,0 +1,11 @@
+# 서버에 필요한 라이브러리 (설치: pip install -r requirements.txt)
+fastapi==0.162.0          # 웹 API 서버
+uvicorn==0.54.0           # FastAPI 를 실행해 주는 프로그램
+sqlalchemy==2.1.8         # 파이썬 코드로 DB 테이블을 다루는 도구
+psycopg[binary]==3.3.7    # PostgreSQL 접속 드라이버 ([binary] = 따로 설치할 것 없이 바로 사용)
+pyjwt==2.15.1             # 로그인 토큰(JWT) 만들기·확인
+bcrypt==5.0.0             # 비밀번호 해시 (원문은 저장하지 않음)
+
+# 테스트용
+pytest==9.2.0
+httpx2==2.16.0            # FastAPI 테스트 클라이언트가 내부에서 사용
