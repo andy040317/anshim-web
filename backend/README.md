@@ -41,10 +41,23 @@ uvicorn app.main:app --reload     # 서버 켜기. --reload = 코드를 고치�
 | 이름 | 뜻 | 기본값 |
 |---|---|---|
 | `DATABASE_URL` | DB 주소. PostgreSQL 예: `postgresql://사용자:비밀번호@호스트:5432/DB이름` | 개발용 SQLite 파일 |
+| `DATABASE_URL_UNPOOLED` | (Neon) 직접 연결 주소. 있으면 테이블 만들기에 이 주소를 씀 | `DATABASE_URL` 과 같음 |
 | `JWT_SECRET` | 로그인 토큰 서명용 비밀키 (배포 때 꼭 설정) | 켤 때마다 임시로 만듦 |
 | `CORS_ORIGINS` | 이 서버를 불러도 되는 프론트 주소 (쉼표로 여러 개) | `http://localhost:5173` |
 | `TOKEN_EXPIRE_HOURS` | 로그인 유지 시간(시간) | 12 |
 | `SHARE_EXPIRE_MIN` | 일반 위치공유 링크 유효시간(분). 규격서 "설계 단계 확정" 항목이라 임시값 | 60 |
+
+**Neon DB 주소 받기 (PC 터미널, 프로젝트 최상위 폴더에서)**
+
+```
+npm i -g neon@latest
+neon login                        # 브라우저가 열리면 Neon 계정으로 로그인
+neon env pull --project-id odd-bird-44231513 --branch production --services postgres --file backend/.env
+```
+
+`backend/.env` 에 `DATABASE_URL`(연결 묶음, 주소에 `-pooler`)과 `DATABASE_URL_UNPOOLED`(직접 연결)가 들어가요. 다른 줄은 그대로 둬요.
+서버는 평소 요청에 `DATABASE_URL`, 테이블 만들기에 `DATABASE_URL_UNPOOLED` 를 써요 (Neon 권장 방식).
+CLI 대신 Neon 화면의 **Connect** 에서 주소 하나만 복사해 `DATABASE_URL` 에 넣어도 돼요.
 
 ## 3. 테스트
 
