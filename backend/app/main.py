@@ -10,15 +10,18 @@ from sqlalchemy import text
 
 from . import errors, models  # noqa: F401  (models 를 불러와야 테이블 정의가 등록됨)
 from .config import CORS_ORIGINS
-from .db import Base, engine
+from .db import Base, engine, schema_engine
 from .routers import auth, guardians, shares, sos, users
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 서버가 켜질 때 테이블이 없으면 만듦 (이미 있으면 그대로 둠)
+    # 서버가 켜질 때 테이블이 없으면 만듦 (이미 있으면 그대로 둠). 직접 연결 주소가 있으면 그걸로 (db.schema_engine)
     # 나중에 테이블 구조를 바꿀 때는 마이그레이션 도구(Alembic)를 도입하는 게 좋음
-    Base.metadata.create_all(engine)
+    eng = schema_engine()
+    Base.metadata.create_all(eng)
+    if eng is not engine:
+        eng.dispose()  # 테이블 만들기용 연결은 다 썼으니 닫음
     yield
 
 

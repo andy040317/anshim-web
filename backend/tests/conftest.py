@@ -6,6 +6,8 @@ import os
 import tempfile
 
 os.environ["DATABASE_URL"] = os.getenv("TEST_DATABASE_URL") or "sqlite:///" + os.path.join(tempfile.gettempdir(), "anshim-test.db")
+# backend/.env 에 실제 Neon 주소가 있어도 테스트가 절대 건드리지 않게, 직접 연결 주소도 테스트 DB로 고정
+os.environ["DATABASE_URL_UNPOOLED"] = os.environ["DATABASE_URL"]
 os.environ["JWT_SECRET"] = "test-secret-for-pytest-only-0123456789abcdef"
 
 import pytest  # noqa: E402

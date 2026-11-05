@@ -1,8 +1,10 @@
 # 설치 폴더·빌드 결과 (각자 npm install / Vercel이 다시 만듦)
 node_modules
 dist
-# 카카오 키가 들어 있으니 GitHub에 올리지 않음
+# 카카오 키·DB 주소가 들어 있으니 GitHub에 올리지 않음 (neon env pull 이 만드는 .env.local 포함)
 .env
+.env.local
+.env.*.local
 .DS_Store
 # 파이썬 실행 때 생기는 임시 파일
 __pycache__

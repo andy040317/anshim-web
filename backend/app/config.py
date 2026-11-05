@@ -37,6 +37,10 @@ def _db_url(url):
 _load_env_file()
 
 DATABASE_URL = _db_url(os.getenv("DATABASE_URL", "").strip())
+# Neon(`neon env pull`)은 주소를 두 개 줌: DATABASE_URL = 연결 묶음(pooled, 주소에 -pooler), DATABASE_URL_UNPOOLED = 직접 연결
+# 평소 요청은 DATABASE_URL, 테이블 만들기(스키마 작업)는 직접 연결로 하라는 게 Neon 권장 → 없으면 DATABASE_URL 하나로 다 함
+_unpooled = os.getenv("DATABASE_URL_UNPOOLED", "").strip()
+DATABASE_URL_UNPOOLED = _db_url(_unpooled) if _unpooled else DATABASE_URL
 
 JWT_SECRET = os.getenv("JWT_SECRET", "").strip()
 if not JWT_SECRET:
